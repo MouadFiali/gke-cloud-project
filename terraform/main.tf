@@ -63,7 +63,7 @@ resource "google_container_cluster" "gke_standard" {
   count = var.enable_autopilot ? 0 : 1
 
   name     = var.name
-  location = var.region
+  location = var.zone
 
   # We can't create a cluster with no node pool defined, but we want to only use
   # separately managed node pools. So we create the smallest possible default
@@ -87,7 +87,7 @@ resource "google_container_node_pool" "primary_nodes" {
   count = var.enable_autopilot ? 0 : 1
 
   name       = "${var.name}-node-pool"
-  location   = var.region
+  location   = var.zone
   cluster    = google_container_cluster.gke_standard[0].name
   node_count = 4
 
@@ -110,7 +110,7 @@ module "gcloud" {
   additional_components = ["kubectl", "beta"]
 
   create_cmd_entrypoint = "gcloud"
-  create_cmd_body = "container clusters get-credentials ${local.cluster_name} --zone=${var.region} --project=${var.gcp_project_id}"
+  create_cmd_body = "container clusters get-credentials ${local.cluster_name} --zone=${var.zone} --project=${var.gcp_project_id}"
 }
 
 # Apply YAML kubernetes-manifest configurations

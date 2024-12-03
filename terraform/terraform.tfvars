@@ -14,7 +14,9 @@
 
 gcp_project_id = "autoscaler-project"
 
-region = "europe-west6-b"
+region = "europe-west6"
+
+zone = "europe-west6-b"
 
 namespace = "main-app"
 

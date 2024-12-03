@@ -1,0 +1,58 @@
+services:
+  loadgenerator:
+    image: us-central1-docker.pkg.dev/google-samples/microservices-demo/loadgenerator:v0.10.2
+    depends_on:
+      frontend-check:
+        condition: service_completed_successfully
+    environment:
+      - FRONTEND_ADDR=${FRONTEND_ADDR_IP}
+      - USERS=10
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.3'
+          memory: 256M
+    user: "1000:1000"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - microservices-demo
+
+  frontend-check:
+    image: busybox:latest
+    command: >
+      /bin/sh -exc '
+      MAX_RETRIES=12;
+      RETRY_INTERVAL=10;
+      for i in $$(seq 1 $$MAX_RETRIES); do
+        echo "Attempt $$i: Pinging frontend: $${FRONTEND_ADDR}...";
+        STATUSCODE=$$(wget --server-response http://$${FRONTEND_ADDR} 2>&1 | awk "/^  HTTP/{print \$$2}");
+        if [ $$STATUSCODE -eq 200 ]; then
+          echo "Frontend is reachable.";
+          exit 0;
+        fi;
+        echo "Error: Could not reach frontend - Status code: $${STATUSCODE}";
+        sleep $$RETRY_INTERVAL;
+      done;
+      echo "Failed to reach frontend after $$MAX_RETRIES attempts.";
+      exit 1'
+    environment:
+      - FRONTEND_ADDR=${FRONTEND_ADDR_IP}
+    user: "1000:1000"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - microservices-demo
+
+networks:
+  microservices-demo:
+    name: microservices-demo
