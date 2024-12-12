@@ -1,0 +1,66 @@
+---
+# This Ansible playbook is used to setup Prometheus stack on a GCP Kubernetes cluster.
+- name: Setup Prometheus stack on GCP Kubernetes cluster
+  hosts: localhost # This playbook is run on the local machine as kubectl can be run locally.
+  tasks:
+    # This task creates a namespace named 'monitoring' in the Kubernetes cluster.
+    - name: Create monitoring namespace
+      shell: kubectl create namespace monitoring
+
+    ## Check if Helm is installed
+    - name: Check if Helm is installed
+      command: helm version --short
+      register: helm_installed
+      ignore_errors: true
+
+    # This task downloads the Helm installation script if Helm is not installed
+    - name: Download Helm script
+      get_url:
+        url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        dest: /tmp/get-helm-3
+        mode: '0755'
+      when: helm_installed.failed
+
+    # This task runs the Helm installation script if Helm is not installed
+    - name: Run Helm script
+      shell: /tmp/get-helm-3
+      when: helm_installed.failed
+    
+    # This task removes the get-helm-3 script from the local machine after Helm is installed
+    - name: Remove Helm script
+      file:
+        path: /tmp/get-helm-3
+        state: absent
+      when: helm_installed.failed
+
+    # This task adds the Prometheus Helm chart repository.
+    - name: Add Prometheus Helm chart repository
+      shell: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+
+    # This task updates the Helm chart repositories.
+    - name: Update Helm chart repositories
+      shell: helm repo update
+
+    # This task installs the Prometheus stack using Helm in the 'monitoring' namespace.
+    - name: Install Prometheus stack using Helm
+      shell: helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --set grafana.service.type=LoadBalancer
+
+    # Add after the Prometheus installation
+    - name: Add Grafana Loki helm repo
+      shell: helm repo add grafana https://grafana.github.io/helm-charts
+
+    - name: Install Tempo
+      shell: >
+        helm install tempo grafana/tempo
+        --namespace monitoring
+        --set tempo.retention=24h
+        --set tempo.receivers.otlp.protocols.grpc.endpoint="0.0.0.0:4317"
+        --set tempo.receivers.otlp.protocols.http.endpoint="0.0.0.0:4318"
+
+    # This task waits for all pods in the 'monitoring' namespace to be running.
+    - name: wait for All pods to be running
+      shell: kubectl get pods -n monitoring --field-selector=status.phase!=Running
+      register: prometheus_service_check
+      until: prometheus_service_check.stdout == ""
+      retries: 10
+      delay: 10
