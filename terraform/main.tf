@@ -113,36 +113,10 @@ module "gcloud" {
   create_cmd_body = "container clusters get-credentials ${local.cluster_name} --zone=${var.zone} --project=${var.gcp_project_id}"
 }
 
-# Apply YAML kubernetes-manifest configurations
-resource "null_resource" "apply_deployment" {
+resource "null_resource" "deploy_services_using_ansible" {
+  depends_on = [module.gcloud]
+
   provisioner "local-exec" {
-    interpreter = ["bash", "-exc"]
-    command     = <<EOT
-      # Check if the namespace exists
-      if ! kubectl get namespace ${var.namespace} >/dev/null 2>&1; then
-        kubectl create namespace ${var.namespace}
-      fi
-
-      kubectl apply -k ${var.filepath_manifest} -n ${var.namespace}
-    EOT
+    command = "cd ../scripts && ./run_ansible_playbooks.sh"
   }
-
-  depends_on = [
-    module.gcloud
-  ]
-}
-
-# Wait condition for all Pods to be ready before finishing
-resource "null_resource" "wait_conditions" {
-  provisioner "local-exec" {
-    interpreter = ["bash", "-exc"]
-    command     = <<-EOT
-    kubectl wait --for=condition=AVAILABLE apiservice/v1beta1.metrics.k8s.io --timeout=300s
-    kubectl wait --for=condition=ready pods --all -n ${var.namespace} --timeout=300s
-    EOT
-  }
-
-  depends_on = [
-    resource.null_resource.apply_deployment
-  ]
 }

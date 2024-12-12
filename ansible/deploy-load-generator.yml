@@ -1,0 +1,25 @@
+---
+- name: Deploy Load Generator Container
+  hosts: load_generator
+  become: true
+
+  tasks:
+    - name: Copy docker-compose file
+      copy:
+        src: ../scripts/docker-compose.yml
+        dest: /tmp/docker-compose.yml
+        mode: '0644'
+
+    - name: Get frontend IP address
+      command: kubectl get service frontend-external -n {{ kubernetes_namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+      register: frontend_ip
+      delegate_to: localhost
+      changed_when: false
+      become: false
+
+    - name: Run docker compose
+      shell: |
+        cd /tmp && \
+        FRONTEND_ADDR_IP={{ frontend_ip.stdout }}:80 docker compose up -d
+      args:
+        executable: /bin/bash

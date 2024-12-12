@@ -18,8 +18,6 @@ region = "europe-west6"
 
 zone = "europe-west6-b"
 
-namespace = "main-app"
-
 enable_autopilot = false
 
 memorystore = false

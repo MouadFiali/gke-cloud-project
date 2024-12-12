@@ -5,7 +5,7 @@ resource "google_compute_firewall" "allow_ssh_load_generator" {
 
   allow {
     protocol = "tcp"
-    ports    = ["22", "80", "443"]
+    ports    = ["22", "80", "443","9646"]
   }
 
   # Allow SSH only from your IP address for security
@@ -53,7 +53,7 @@ resource "local_file" "ansible_inventory" {
         ansible_user: root
         ansible_ssh_private_key_file: ~/.ssh/google_compute_engine
         frontend_service_name: frontend-external
-        kubernetes_namespace: ${var.namespace}
+        kubernetes_namespace: app
 
       hosts:
         load_generator:
@@ -105,16 +105,32 @@ module "check_ssh_connectivity" {
 }
 
 # Run Ansible playbook
-resource "null_resource" "ansible_provisioner" {
+resource "null_resource" "install_tools_load_generator" {
   triggers = {
     instance_id = google_compute_instance.load_generator.id
   }
 
   provisioner "local-exec" {
-    command = "ANSIBLE_DEPRECATION_WARNINGS=False ansible-playbook -i ../ansible/inventory.yml ../ansible/run-load-generator.yml"
+    command = "ANSIBLE_DEPRECATION_WARNINGS=False ansible-playbook -i ../ansible/inventory.yml ../ansible/install-tools-load-generator.yml"
   }
 
   depends_on = [
     local_file.ansible_inventory
+  ]
+}
+
+# Run Ansible playbook
+resource "null_resource" "deploy_load_generator" {
+  triggers = {
+    instance_id = google_compute_instance.load_generator.id
+  }
+
+  provisioner "local-exec" {
+    command = "ANSIBLE_DEPRECATION_WARNINGS=False ansible-playbook -i ../ansible/inventory.yml ../ansible/deploy-load-generator.yml"
+  }
+
+  depends_on = [
+    null_resource.install_tools_load_generator,
+    null_resource.deploy_services_using_ansible
   ]
 }

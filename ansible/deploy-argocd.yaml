@@ -1,0 +1,45 @@
+---
+# Playbook for deploying Argo CD on the local machine and using it to deploy applications.
+- hosts: localhost
+  tasks:
+    # Check if the Argo CD namespace already exists to avoid creating a duplicate.
+    - name: Check if Argo CD namespace exists
+      shell: kubectl get ns argocd
+      register: ns_check
+      failed_when: false
+      changed_when: false
+
+    # Create the Argo CD namespace if it does not exist.
+    - name: Create Argo CD namespace
+      shell: kubectl create namespace argocd
+      when: ns_check.rc != 0
+
+    # Deploy Argo CD using the official installation manifests.
+    - name: Deploy Argo CD
+      shell: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+    # Ensure all Argo CD services are running before proceeding.
+    - name: Wait for all Argo CD services to be running
+      shell: kubectl get pods -n argocd --field-selector=status.phase!=Running
+      register: argocd_service_check
+      until: argocd_service_check.stdout == ""
+      retries: 10
+      delay: 10
+
+    # Apply the secret access configuration to Argo CD.
+    - name: Apply Argo CD secret access
+      shell: kubectl apply -f ./argocd-secret-access.yaml
+ 
+    # Apply the custom resource definitions needed for Argo CD to function.
+    - name: Apply Argo CD CRD
+      shell: kubectl apply -f ./application-argocd.yaml
+    
+    - name: Try to get app service
+      block:
+        - name: Wait for app service to have an external IP
+          shell: |
+            kubectl get svc frontend-external -n app -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+          register: nginx_service_check
+          until: nginx_service_check.stdout != ""
+          retries: 15
+          delay: 10
