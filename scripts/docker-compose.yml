@@ -7,6 +7,8 @@ services:
     environment:
       - FRONTEND_ADDR=${FRONTEND_ADDR_IP}
       - USERS=10
+    ports:
+      - "8089:8089"
     deploy:
       resources:
         limits:
@@ -23,7 +25,20 @@ services:
       - ALL
     networks:
       - microservices-demo
+    # We need to launch it with the web UI in order for the stats to be available for the exporter
+    entrypoint: locust --host="http://${FRONTEND_ADDR}" 2>&1
 
+  locust-metrics-exporter:
+    image: containersol/locust_exporter
+    ports:
+      - "9646:9646"
+    environment:
+      - LOCUST_EXPORTER_URI=http://loadgenerator:8089
+    depends_on:
+      - loadgenerator
+    networks:
+      - microservices-demo
+      
   frontend-check:
     image: busybox:latest
     command: >
