@@ -41,14 +41,93 @@
     - name: Update Helm chart repositories
       shell: helm repo update
 
-    # This task installs the Prometheus stack using Helm in the 'monitoring' namespace.
-    - name: Install Prometheus stack using Helm
-      shell: helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack --namespace monitoring --set grafana.service.type=LoadBalancer
+    # Create ConfigMap for the dashboard
+    - name: Create ConfigMap for Istio Canary dashboard
+      shell: |
+        kubectl create configmap istio-canary-dashboard --from-file=istio-canary-dashboard.json=Istio_Canary_dashboard.json -n monitoring
 
-    # Add after the Prometheus installation
+    # This task creates a custom values file for Grafana configuration
+    - name: Create custom values file for Grafana configuration
+      copy:
+        dest: grafana-custom-values.yaml
+        content: |
+          grafana:
+            service:
+              type: LoadBalancer
+            sidecar:
+              dashboards:
+                enabled: true
+                label: grafana_dashboard
+                labelValue: "1"
+                searchNamespace: monitoring
+                provider:
+                  allowUiUpdates: true
+                  disableDelete: false
+                  folder: ""
+                  type: file
+                  foldersFromFilesStructure: true
+          
+          prometheus:
+            prometheusSpec:
+              scrapeInterval: 15s
+              scrapeTimeout: 10s
+              evaluationInterval: 1m
+              # Import the scrape configurations from Istio's Prometheus
+              additionalScrapeConfigs:
+                - job_name: 'kubernetes-pods'
+                  kubernetes_sd_configs:
+                    - role: pod
+                  relabel_configs:
+                    - action: keep
+                      regex: true
+                      source_labels:
+                        - __meta_kubernetes_pod_annotation_prometheus_io_scrape
+                    - action: replace
+                      regex: (.+)
+                      source_labels:
+                        - __meta_kubernetes_pod_annotation_prometheus_io_path
+                      target_label: __metrics_path__
+                    - action: replace
+                      regex: ([^:]+)(?::\d+)?;(\d+)
+                      replacement: $1:$2
+                      source_labels:
+                        - __address__
+                        - __meta_kubernetes_pod_annotation_prometheus_io_port
+                      target_label: __address__
+                    - action: labelmap
+                      regex: __meta_kubernetes_pod_label_(.+)
+                    - action: replace
+                      source_labels:
+                        - __meta_kubernetes_namespace
+                      target_label: kubernetes_namespace
+                    - action: replace
+                      source_labels:
+                        - __meta_kubernetes_pod_name
+                      target_label: kubernetes_pod_name          
+            
+    # This task installs the Prometheus stack using Helm with custom values
+    - name: Install Prometheus stack using Helm
+      shell: >
+        helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack 
+        --namespace monitoring 
+        --values grafana-custom-values.yaml
+
+    # Label the ConfigMap for Grafana to pick it up
+    - name: Label dashboard ConfigMap
+      shell: |
+        kubectl label configmap istio-canary-dashboard -n monitoring grafana_dashboard="1"
+
+    # Cleanup the custom values file
+    - name: Remove custom values file
+      file:
+        path: grafana-custom-values.yaml
+        state: absent
+    
+    # Add Grafana Loki helm repo
     - name: Add Grafana Loki helm repo
       shell: helm repo add grafana https://grafana.github.io/helm-charts
 
+    # Install Tempo
     - name: Install Tempo
       shell: >
         helm install tempo grafana/tempo

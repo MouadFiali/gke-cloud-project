@@ -1,1 +1,3 @@
 terraform/.terraform/*
+ansible/cn.yaml
+ansible/dep.yaml

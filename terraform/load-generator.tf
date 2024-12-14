@@ -5,11 +5,27 @@ resource "google_compute_firewall" "allow_ssh_load_generator" {
 
   allow {
     protocol = "tcp"
-    ports    = ["22", "80", "443","9646"]
+    ports    = ["22", "80", "443"]
   }
 
   # Allow SSH only from your IP address for security
   source_ranges = ["0.0.0.0/0"]
+  
+  # Target only the load generator instance
+  target_tags = ["load-generator"]
+}
+
+resource "google_compute_firewall" "allow_internal_ports" {
+  name    = "${var.name}-allow-internal-ports"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["9646", "8089"]
+  }
+
+  # Allow internal access only
+  source_ranges = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
   
   # Target only the load generator instance
   target_tags = ["load-generator"]

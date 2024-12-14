@@ -1,0 +1,128 @@
+---
+# This Ansible playbook is used to setup Istio and Flagger on a GCP Kubernetes cluster.
+- name: Setup Istio and Flagger on GCP Kubernetes cluster
+  hosts: localhost
+  tasks:
+    # Grant cluster administrator (admin) permissions to the current user.
+    - name: Grant cluster admin permissions to current user
+      shell: |
+        kubectl create clusterrolebinding cluster-admin-binding \
+          --clusterrole=cluster-admin \
+          --user=$(gcloud config get-value core/account)
+      register: admin_binding
+      failed_when: admin_binding.rc != 0 and 'AlreadyExists' not in admin_binding.stderr
+
+    # Add Istio Helm repository
+    - name: Add Istio Helm repository
+      shell: helm repo add istio https://istio-release.storage.googleapis.com/charts
+      register: repo_add
+      failed_when: repo_add.rc != 0 and 'already exists' not in repo_add.stderr
+
+    # Update Helm repositories
+    - name: Update Helm repositories
+      shell: helm repo update
+      register: repo_update
+      failed_when: repo_update.rc != 0
+
+    # Validate namespace doesn't exist before creation
+    - name: Check if istio-system namespace exists
+      shell: kubectl get namespace istio-system
+      register: namespace_check
+      ignore_errors: true
+
+    # Install Istio base chart
+    - name: Install Istio base chart
+      shell: helm install istio-base istio/base -n istio-system --set defaultRevision=default --create-namespace
+      register: base_install
+      failed_when: base_install.rc != 0
+      when: namespace_check.rc != 0
+
+    # Wait for CRDs to be ready
+    - name: Wait for Istio CRDs to be established
+      shell: |
+        kubectl wait --for=condition=Established crd --all -n istio-system --timeout=300s
+      register: crd_wait
+      failed_when: crd_wait.rc != 0
+      retries: 3
+      delay: 10
+
+    # Install Istio discovery chart
+    - name: Install Istio discovery chart
+      shell: helm install istiod istio/istiod -n istio-system --wait
+      register: istiod_install
+      failed_when: istiod_install.rc != 0
+
+    # Wait for istiod deployment to be ready
+    - name: Wait for istiod deployment to be ready
+      shell: |
+        kubectl wait --for=condition=Available deployment/istiod -n istio-system --timeout=300s
+      register: istiod_wait
+      failed_when: istiod_wait.rc != 0
+      retries: 3
+      delay: 10
+
+    # Add Flagger Helm repository
+    - name: Add Flagger Helm repository
+      shell: helm repo add flagger https://flagger.app
+      register: flagger_repo_add
+      failed_when: flagger_repo_add.rc != 0 and 'already exists' not in flagger_repo_add.stderr
+
+    # Update Helm repositories after adding Flagger
+    - name: Update Helm repositories for Flagger
+      shell: helm repo update
+      register: repo_update_flagger
+      failed_when: repo_update_flagger.rc != 0
+
+    # Install Flagger's Canary CRD
+    - name: Install Flagger's Canary CRD
+      shell: kubectl apply -f https://raw.githubusercontent.com/fluxcd/flagger/main/artifacts/flagger/crd.yaml
+      register: flagger_crd
+      failed_when: flagger_crd.rc != 0
+
+    # Wait for Flagger CRDs to be established
+    - name: Wait for Flagger CRDs to be established
+      shell: |
+        kubectl wait --for=condition=Established crd/canaries.flagger.app --timeout=300s
+      register: flagger_crd_wait
+      failed_when: flagger_crd_wait.rc != 0
+      retries: 3
+      delay: 10
+
+    # Install Flagger
+    - name: Deploy Flagger for Istio
+      shell: >
+        helm upgrade -i flagger flagger/flagger 
+        --namespace=istio-system 
+        --set crd.create=false 
+        --set meshProvider=istio 
+        --set metricsServer=http://kube-prometheus-stack-prometheus.monitoring:9090
+        --wait
+      register: flagger_install
+      failed_when: flagger_install.rc != 0
+
+    # Wait for Flagger deployment to be ready
+    - name: Wait for Flagger deployment to be ready
+      shell: |
+        kubectl wait --for=condition=Available deployment/flagger -n istio-system --timeout=300s
+      register: flagger_wait
+      failed_when: flagger_wait.rc != 0
+      retries: 3
+      delay: 10
+
+    # Validate Flagger installation
+    - name: Validate Flagger installation
+      shell: |
+        # Check if Flagger deployment is ready
+        FLAGGER_READY=$(kubectl get deployment flagger -n istio-system -o jsonpath='{.status.readyReplicas}')
+        if [ "$FLAGGER_READY" != "1" ]; then
+          echo "Flagger deployment is not ready"
+          exit 1
+        fi
+        
+        # Check if Canary CRD is properly installed
+        if ! kubectl get crd | grep -q "canaries.flagger.app"; then
+          echo "Canary CRD is not installed properly"
+          exit 1
+        fi
+      register: flagger_validation
+      failed_when: flagger_validation.rc != 0

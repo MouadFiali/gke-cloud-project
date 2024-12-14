@@ -13,7 +13,7 @@ spec:
     path: kustomize
   destination:
     server: https://kubernetes.default.svc
-    namespace: app-test
+    namespace: app
   syncPolicy:
     automated:
       prune: true
