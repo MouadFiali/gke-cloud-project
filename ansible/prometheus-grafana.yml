@@ -41,11 +41,12 @@
     - name: Update Helm chart repositories
       shell: helm repo update
 
-    # Create ConfigMap for the dashboard
-    - name: Create ConfigMap for Istio Canary dashboard
+    # Create ConfigMaps for the dashboards
+    - name: Create ConfigMaps for dashboards
       shell: |
-        kubectl create configmap istio-canary-dashboard --from-file=istio-canary-dashboard.json=dashboards/Istio_Canary_dashboard.json -n monitoring          
-            
+        kubectl create configmap istio-canary-dashboard --from-file=istio-canary-dashboard.json=dashboards/istio_canary_dashboard.json -n monitoring
+        kubectl create configmap load-generator-dashboard --from-file=load-generator-dashboard.json=dashboards/load_generator_dashboard.json -n monitoring  
+
     # This task installs the Prometheus stack using Helm with custom values
     - name: Install Prometheus stack using Helm
       shell: >
@@ -53,10 +54,11 @@
         --namespace monitoring 
         --values custom-values/prom-grafana-values.yaml
 
-    # Label the ConfigMap for Grafana to pick it up
-    - name: Label dashboard ConfigMap
+    # Label the ConfigMaps for Grafana to pick the dashboards
+    - name: Label dashboard ConfigMaps
       shell: |
         kubectl label configmap istio-canary-dashboard -n monitoring grafana_dashboard="1"
+        kubectl label configmap load-generator-dashboard -n monitoring grafana_dashboard="1"
     
     # Add Grafana Tempo helm repo
     - name: Add Grafana Tempo helm repo
@@ -67,9 +69,7 @@
       shell: >
         helm install tempo grafana/tempo
         --namespace monitoring
-        --set tempo.retention=24h
-        --set tempo.receivers.otlp.protocols.grpc.endpoint="0.0.0.0:4317"
-        --set tempo.receivers.otlp.protocols.http.endpoint="0.0.0.0:4318"
+        --values custom-values/tempo-values.yaml
 
     # This task waits for all pods in the 'monitoring' namespace to be running.
     - name: wait for All pods to be running
