@@ -1,0 +1,59 @@
+grafana:
+  service:
+    type: LoadBalancer
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: monitoring
+      provider:
+        allowUiUpdates: true
+        disableDelete: false
+        folder: ""
+        type: file
+        foldersFromFilesStructure: true
+
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 15s
+    scrapeTimeout: 10s
+    evaluationInterval: 1m
+    # Import the scrape configurations from Istio's Prometheus
+    additionalScrapeConfigs:
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - action: keep
+            regex: true
+            source_labels:
+              - __meta_kubernetes_pod_annotation_prometheus_io_scrape
+          - action: replace
+            regex: (.+)
+            source_labels:
+              - __meta_kubernetes_pod_annotation_prometheus_io_path
+            target_label: __metrics_path__
+          - action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            source_labels:
+              - __address__
+              - __meta_kubernetes_pod_annotation_prometheus_io_port
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_namespace
+            target_label: kubernetes_namespace
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_pod_name
+            target_label: kubernetes_pod_name
+      # Add the locust-metrics-exporter job to scrape metrics from the locust-metrics-exporter
+      - job_name: prometheus_scrapper
+        scrape_interval: 5s
+        static_configs:
+        - targets:
+          - online-boutique-load-generator:9646
