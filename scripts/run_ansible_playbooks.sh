@@ -21,4 +21,13 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Run install-istio-flagger playbook
+ansible-playbook install-istio-flagger.yml
+
+# Check if the third playbook ran successfully
+if [ $? -ne 0 ]; then
+    echo "Failed to run install-istio-flagger.yaml"
+    exit 1
+fi
+
 echo "All playbooks ran successfully"

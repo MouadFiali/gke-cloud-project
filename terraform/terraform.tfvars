@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-gcp_project_id = "autoscaler-project"
+gcp_project_id = "mosig-cloud-444913"
 
 region = "europe-west6"
 

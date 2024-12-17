@@ -24,8 +24,35 @@
       args:
         executable: /bin/bash
     
-    # Command to swarm the load generator from inside the container
-    # curl "http://localhost:8089/swarm" -X POST -H "Content-Type: application/x-www-form-urlencoded" --data "user_count=10&spawn_rate=1&host=http://34.65.74.161:80"
+    - name: Wait for Locust to become available
+      uri:
+        url: "http://localhost:8089/"
+        method: GET
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 30
+      delay: 5
+      ignore_errors: yes
+
+    - name: Get container logs if service failed to start
+      shell: docker compose logs
+      args:
+        chdir: /tmp
+      register: docker_logs
+      when: result.status is not defined or result.status != 200
+      ignore_errors: yes
+
+    - name: Display docker logs if service failed
+      debug:
+        var: docker_logs.stdout_lines
+      when: docker_logs is defined and docker_logs.stdout_lines is defined
+
+    - name: Fail if service is not available
+      fail:
+        msg: "Locust service failed to become available after 150 seconds"
+      when: result.status is not defined or result.status != 200
+
     - name: Swarm the load generator
       uri:
         url: "http://localhost:8089/swarm"
@@ -34,3 +61,7 @@
           Content-Type: "application/x-www-form-urlencoded"
         body: "user_count=10&spawn_rate=1&host=http://{{ frontend_ip.stdout }}:80"
         status_code: 200
+      register: swarm_result
+      retries: 3
+      delay: 5
+      until: swarm_result is success

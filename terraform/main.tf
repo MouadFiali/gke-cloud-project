@@ -18,7 +18,8 @@ locals {
     "container.googleapis.com",
     "monitoring.googleapis.com",
     "cloudtrace.googleapis.com",
-    "cloudprofiler.googleapis.com"
+    "cloudprofiler.googleapis.com",
+    "compute.googleapis.com"
   ]
   memorystore_apis = ["redis.googleapis.com"]
   cluster_name     = var.enable_autopilot ? google_container_cluster.gke_autopilot[0].name : google_container_cluster.gke_standard[0].name

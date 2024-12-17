@@ -41,5 +41,5 @@
             kubectl get svc frontend-external -n app -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
           register: nginx_service_check
           until: nginx_service_check.stdout != ""
-          retries: 15
-          delay: 10
+          retries: 20
+          delay: 40

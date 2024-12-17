@@ -5,7 +5,7 @@ resource "google_compute_firewall" "allow_ssh_load_generator" {
 
   allow {
     protocol = "tcp"
-    ports    = ["22", "80", "443"]
+    ports    = ["22", "80", "443","9646","8089"]
   }
 
   # Allow SSH only from your IP address for security
@@ -78,11 +78,11 @@ resource "local_file" "ansible_inventory" {
   EOT
 
   depends_on = [
-    module.check_ssh_connectivity
+    module.check_connectivity
   ]
 }
 
-module "check_ssh_connectivity" {
+module "check_connectivity" {
   source  = "terraform-google-modules/gcloud/google"
   version = "~> 3.0"
 
@@ -96,16 +96,20 @@ module "check_ssh_connectivity" {
     max_attempts=30
     attempt=1
     
-    echo "Waiting for SSH to become available..."
+    # SSH options to avoid prompts and use key authentication
+    SSH_OPTS="--quiet --zone=${var.zone} --ssh-key-file=~/.ssh/google_compute_engine --strict-host-key-checking=no --force-key-file-overwrite"
+    
+    echo "Waiting for SSH connectivity..."
+    
     until [ "$attempt" -gt "$max_attempts" ]; do
       if gcloud compute ssh ${google_compute_instance.load_generator.name} \
-        --zone=${var.zone} \
-        --quiet \
+        $${SSH_OPTS} \
         --command="echo 'SSH connection successful'" > /dev/null 2>&1; then
         echo "SSH is ready!"
         exit 0
       fi
-      echo "Attempt $attempt/$max_attempts - SSH not ready yet. Waiting 2 seconds..."
+      
+      echo "Attempt $attempt/$max_attempts - Waiting for SSH... Retrying in 2 seconds..."
       sleep 2
       attempt=$((attempt + 1))
     done
@@ -119,7 +123,6 @@ module "check_ssh_connectivity" {
     "${google_compute_firewall.allow_ssh_load_generator.id}"
   ]
 }
-
 # Run Ansible playbook
 resource "null_resource" "install_tools_load_generator" {
   triggers = {
