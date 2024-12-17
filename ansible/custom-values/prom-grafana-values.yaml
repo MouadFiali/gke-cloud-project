@@ -57,3 +57,8 @@ prometheus:
         static_configs:
         - targets:
           - online-boutique-load-generator:9646
+      # Redis exporter job
+      - job_name: redis-exporter
+        static_configs:
+        - targets:
+          - redis-cart.app:9121
