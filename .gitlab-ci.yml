@@ -16,7 +16,7 @@ validate-version:
     - echo "Validating commit message for versioning..."
     - |
       # Ensure the pipeline is triggered by a commit message that includes #major, #minor, or #patch
-      if [[ ! "$CI_COMMIT_MESSAGE" =~ "*#(major|minor|patch)*" ]]; then
+      if [[ ! "$CI_COMMIT_MESSAGE" =~ .*#(major|minor|patch).* ]]; then
         echo "Commit message must include '#major', '#minor', or '#patch'."
         exit 1
       fi
@@ -26,11 +26,11 @@ validate-version:
       echo "Current version: ${VERSION}"
 
       # Determine the new version based on the commit message
-      if [[ "$CI_COMMIT_MESSAGE" =~ "*#major*" ]]; then
+      if [[ "$CI_COMMIT_MESSAGE" =~ .*#major.* ]]; then
         NEW_VERSION=$(echo $VERSION | awk -F. '{$1 += 1; $2 = 0; $3 = 0; print $1 "." $2 "." $3}')
-      elif [[ "$CI_COMMIT_MESSAGE" =~ "*#minor*" ]]; then
+      elif [[ "$CI_COMMIT_MESSAGE" =~ .*#minor.* ]]; then
         NEW_VERSION=$(echo $VERSION | awk -F. '{$2 += 1; $3 = 0; print $1 "." $2 "." $3}')
-      elif [[ "$CI_COMMIT_MESSAGE" =~ "*#patch*" ]]; then
+      elif [[ "$CI_COMMIT_MESSAGE" =~ .*#patch.* ]]; then
         NEW_VERSION=$(echo $VERSION | awk -F. '{$3 += 1; print $1 "." $2 "." $3}')
       fi
 
