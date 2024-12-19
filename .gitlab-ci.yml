@@ -1,7 +1,6 @@
 stages:
   - validate
-  - package
-  - release
+  - package-release
 
 variables:
   RELEASES_DIR: "releases"
@@ -58,12 +57,19 @@ validate-version:
         git add ${CHART_DIR}/Chart.yaml
         git commit -m "Update chart version to ${NEW_VERSION}"
       fi
+  rules:
+    - changes:
+        - helm-chart/*
+      exists:
+        - ${CI_COMMIT_TAG}
+      if: '$CI_COMMIT_TAG =~ /^(major|minor|patch)$/'
 
-package-chart:
-  stage: package
+package-release-chart:
+  stage: package-release
   image: ubuntu:latest
   before_script:
     - echo "Installing required tools - helm..."
+    - apt-get update && apt-get install -y curl git
     - curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
     - chmod 700 get_helm.sh
     - ./get_helm.sh
@@ -81,11 +87,5 @@ package-chart:
     - git add ${RELEASES_DIR}
     - git commit -m "Update releases with new chart version"
     - git push origin $CI_COMMIT_REF_NAME
-    
-rules:
-  # Only trigger if changes are made to the helm-chart folder and if a valid tag is present
-  - changes:
-      - helm-chart/*
-    exists:
-      - ${CI_COMMIT_TAG}
-    if: '$CI_COMMIT_TAG =~ /^(major|minor|patch)$/'
+  dependencies:
+    - validate-version
