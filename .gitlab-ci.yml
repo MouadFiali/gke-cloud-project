@@ -11,7 +11,9 @@ validate-version:
   image: ubuntu:latest
   before_script:
     - echo "Installing required tools - yq & Git..."
-    - apt-get update && apt-get install -y git yq
+    - apt-get update && apt-get install -y git curl
+    - curl -sLo /usr/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.6/yq_linux_amd64
+    - chmod +x /usr/bin/yq
   script:
     - echo "Validating commit message for versioning..."
     - |
