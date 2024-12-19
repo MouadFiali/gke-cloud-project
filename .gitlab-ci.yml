@@ -47,10 +47,11 @@ validate-version:
       git add ${CHART_DIR}/Chart.yaml
       git commit -m "CI - Update chart version to ${NEW_VERSION}"
       git push https://gitlab-ci-token:${GITLAB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git HEAD:${CI_COMMIT_REF_NAME}
-  rules:
-    - changes:
-        - helm-chart/*
-      if: '$CI_COMMIT_MESSAGE =~ .*#(major|minor|patch).*'
+  rules: 
+    - if: '$CI_COMMIT_MESSAGE =~ /#(major|minor|patch)/'
+      changes:  
+        - helm-chart/**/*
+
 package-release-chart:
   stage: package-release
   image: ubuntu:latest
@@ -73,7 +74,7 @@ package-release-chart:
     - git push https://gitlab-ci-token:${GITLAB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git HEAD:${CI_COMMIT_REF_NAME}
   dependencies:
     - validate-version
-  rules:
-    - changes:
-        - helm-chart/*
-    if: '$CI_COMMIT_MESSAGE =~ .*#(major|minor|patch).*'
+  rules: 
+    - if: '$CI_COMMIT_MESSAGE =~ /#(major|minor|patch)/'
+      changes:  
+        - helm-chart/**/*
