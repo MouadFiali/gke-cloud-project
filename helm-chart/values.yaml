@@ -216,5 +216,3 @@ cartDatabase:
 shoppingAssistantService:
   create: false
   name: shoppingassistantservice
-
-# Test pipeline
