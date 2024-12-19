@@ -211,7 +211,7 @@ cartDatabase:
     endpointPort: ""
     certificate: ""
 
-# @TODO: This service is not currently available in Helm.
+# @TODO: This service is not currently available in Helm. 
 # https://github.com/GoogleCloudPlatform/microservices-demo/tree/main/kustomize/components/shopping-assistant
 shoppingAssistantService:
   create: false
