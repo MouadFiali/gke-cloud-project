@@ -47,7 +47,7 @@ validate-version:
   rules:
     - changes:
         - helm-chart/*
-      if: '$CI_COMMIT_MESSAGE =~ "#(major|minor|patch)"'
+      if: '$CI_COMMIT_MESSAGE =~ ".*#(major|minor|patch).*"'
 
 package-release-chart:
   stage: package-release
@@ -75,4 +75,4 @@ package-release-chart:
   rules:
     - changes:
         - helm-chart/*
-      if: '$CI_COMMIT_MESSAGE =~ "#(major|minor|patch)"'
+      if: '$CI_COMMIT_MESSAGE =~ ".*#(major|minor|patch).*"'
