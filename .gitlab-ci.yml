@@ -16,7 +16,7 @@ validate-version:
     - echo "Validating commit message for versioning..."
     - |
       # Ensure the pipeline is triggered by a commit message that includes #major, #minor, or #patch
-      if [[ ! "$CI_COMMIT_MESSAGE" =~ "#(major|minor|patch)" ]]; then
+      if [[ ! "$CI_COMMIT_MESSAGE" =~ "*#(major|minor|patch)*" ]]; then
         echo "Commit message must include '#major', '#minor', or '#patch'."
         exit 1
       fi
