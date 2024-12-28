@@ -2,6 +2,9 @@
 # This Ansible playbook is used to setup Prometheus stack on a GCP Kubernetes cluster.
 - name: Setup Prometheus stack on GCP Kubernetes cluster
   hosts: localhost # This playbook is run on the local machine as kubectl can be run locally.
+  vars:
+    tracing: "{{ tracing | default('false') }}"
+    logging: "{{ logging | default('false') }}"
   tasks:
     # This task creates a namespace named 'monitoring' in the Kubernetes cluster.
     - name: Create monitoring namespace
@@ -78,7 +81,15 @@
         helm install tempo grafana/tempo
         --namespace monitoring
         --values custom-values/tempo-values.yaml
+      when: tracing | bool
 
+    # Install Loki
+    - name: Install Loki
+      shell: >
+        helm install loki grafana/loki
+        --namespace monitoring
+        --values custom-values/loki-custom-values.yaml
+      when: logging | bool
     # # This task waits for all pods in the 'monitoring' namespace to be running.
     # - name: wait for All pods to be running
     #   shell: kubectl get pods -n monitoring --field-selector=status.phase!=Running

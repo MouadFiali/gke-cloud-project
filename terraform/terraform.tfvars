@@ -23,3 +23,9 @@ zone = "europe-west6-b"
 enable_autopilot = false
 
 memorystore = false
+
+namespace = "app"
+
+tracing = false
+
+logging = false

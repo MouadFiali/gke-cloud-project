@@ -54,6 +54,18 @@ variable "namespace" {
   default     = "default"
 }
 
+variable "tracing" {
+  type        = bool
+  description = "Enable tracing using open telemetry tempo and grafana"
+  default     = false
+} 
+
+variable "logging" {
+  type        = bool
+  description = "Enable logging using open telemetry, loki and grafana"
+  default     = false
+}
+
 variable "enable_autopilot" {
   description = "Enable Autopilot mode for the GKE cluster"
   type        = bool

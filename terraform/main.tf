@@ -14,6 +14,7 @@
 
 # Definition of local variables
 locals {
+  # API configurations
   base_apis = [
     "container.googleapis.com",
     "compute.googleapis.com",
@@ -122,23 +123,34 @@ resource "google_container_node_pool" "primary_nodes" {
   }
 }
 
-# Get credentials for cluster
-module "gcloud" {
-  source  = "terraform-google-modules/gcloud/google"
-  version = "~> 3.0"
+# Get the current client configuration
+data "google_client_config" "current" {}
 
-  platform              = "linux"
-  additional_components = ["kubectl", "beta"]
+# Update the kubeconfig generation
+resource "local_file" "kubeconfig" {
+  depends_on = [
+    google_container_cluster.gke_autopilot,
+    google_container_cluster.gke_standard
+  ]
 
-  create_cmd_entrypoint = "gcloud"
-  create_cmd_body = "container clusters get-credentials ${local.cluster_name} --zone=${var.zone} --project=${var.gcp_project_id}"
+  filename = pathexpand("~/.kube/config")
+  content = templatefile("${path.module}/kubeconfig.tpl", {
+    cluster_name    = local.cluster_name
+    endpoint        = var.enable_autopilot ? google_container_cluster.gke_autopilot[0].endpoint : google_container_cluster.gke_standard[0].endpoint
+    cluster_ca      = var.enable_autopilot ? google_container_cluster.gke_autopilot[0].master_auth[0].cluster_ca_certificate : google_container_cluster.gke_standard[0].master_auth[0].cluster_ca_certificate
+    client_token    = data.google_client_config.current.access_token
+    gcp_project_id  = var.gcp_project_id
+    location        = var.enable_autopilot ? var.region : var.zone
+  })
+
+  file_permission = "0600"
 }
 
 resource "null_resource" "deploy_services_using_ansible" {
   depends_on = [module.gcloud]
 
   provisioner "local-exec" {
-    command = "cd ../scripts && ./run_ansible_playbooks.sh"
+    command = "cd ../scripts && ./run_ansible_playbooks.sh ${var.namespace} ${var.tracing} ${var.logging}"
   }
 }
 

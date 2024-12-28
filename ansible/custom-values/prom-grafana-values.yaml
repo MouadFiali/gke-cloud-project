@@ -75,6 +75,17 @@ grafana:
           datasourceUid: prometheus
         tracesToMetrics:
           datasourceUid: prometheus
+    - name: loki
+      access: proxy
+      type: loki
+      url: http://loki-gateway
+      editable: true
+      orgId: 1
+      version: 1
+      jsonData:
+        httpHeaderName1: "X-Scope-OrgID"
+      secureJsonData:  
+        httpHeaderValue1: "1"
 
 prometheus:
   prometheusSpec:

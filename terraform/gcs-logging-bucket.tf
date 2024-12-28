@@ -1,10 +1,12 @@
 resource "time_sleep" "wait_for_cluster" {
-  depends_on = [module.gcloud]
+  count      = var.logging ? 1 : 0
+  depends_on = [local_file.kubeconfig]
   create_duration = "60s"
 }
 
 # Create GCP Service Account for Loki
 resource "google_service_account" "loki_gcs" {
+  count        = var.logging ? 1 : 0
   account_id   = "loki-gcs"
   display_name = "Loki Storage Account"
   depends_on = [
@@ -14,18 +16,19 @@ resource "google_service_account" "loki_gcs" {
 
 # Create Kubernetes Service Account for Loki
 resource "kubernetes_service_account" "loki_sa" {
+  count = var.logging ? 1 : 0
   metadata {
     name = "loki"
     namespace = "monitoring"
     annotations = {
-      "iam.gke.io/gcp-service-account" = google_service_account.loki_gcs.email
+      "iam.gke.io/gcp-service-account" = google_service_account.loki_gcs[0].email
     }
   }
   timeouts {
     create = "5m"
   }
   depends_on = [
-    module.gcloud,
+    local_file.kubeconfig,
     null_resource.deploy_services_using_ansible,
     time_sleep.wait_for_cluster
   ]
@@ -33,7 +36,8 @@ resource "kubernetes_service_account" "loki_sa" {
 
 # Create IAM policy binding for workload identity
 resource "google_service_account_iam_binding" "loki_sa_workload_identity" {
-  service_account_id = google_service_account.loki_gcs.name
+  count              = var.logging ? 1 : 0
+  service_account_id = google_service_account.loki_gcs[0].name
   role               = "roles/iam.workloadIdentityUser"
   members = [
     "serviceAccount:${var.gcp_project_id}.svc.id.goog[monitoring/loki]"
@@ -45,6 +49,7 @@ resource "google_service_account_iam_binding" "loki_sa_workload_identity" {
 
 # Create single GCS bucket for TSDB storage
 resource "google_storage_bucket" "loki_storage" {
+  count         = var.logging ? 1 : 0
   name          = "loki-storage-tsdb-24"  # Changed name to reflect TSDB usage
   location      = var.region
   force_destroy = true
@@ -70,7 +75,8 @@ resource "google_storage_bucket" "loki_storage" {
 }
 
 resource "google_storage_bucket_iam_member" "loki_storage_object_admin" {
-  bucket = google_storage_bucket.loki_storage.name
+  count  = var.logging ? 1 : 0
+  bucket = google_storage_bucket.loki_storage[0].name
   role   = "roles/storage.objectUser"
-  member = "serviceAccount:${google_service_account.loki_gcs.email}"
+  member = "serviceAccount:${google_service_account.loki_gcs[0].email}"
 }

@@ -4,11 +4,16 @@
   hosts: localhost
   tasks:
     # Grant cluster administrator (admin) permissions to the current user.
-    - name: Grant cluster admin permissions to current user
+    - name: Read service account email from json
+      shell: |
+        jq -r .client_email ../project-sa.json
+      register: sa_email
+
+    - name: Grant cluster admin permissions
       shell: |
         kubectl create clusterrolebinding cluster-admin-binding \
           --clusterrole=cluster-admin \
-          --user=$(gcloud config get-value core/account)
+          --user="{{ sa_email.stdout }}"
       register: admin_binding
       failed_when: admin_binding.rc != 0 and 'AlreadyExists' not in admin_binding.stderr
 

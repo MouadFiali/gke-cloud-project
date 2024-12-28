@@ -44,6 +44,10 @@ authorizationPolicies:
 opentelemetryCollector:
   create: false
   name: opentelemetrycollector
+  tracing:
+    enabled: false
+  logging:
+    enabled: false
 
 googleCloudOperations:
   profiler: false

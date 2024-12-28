@@ -3,3 +3,6 @@ ansible/cn.yaml
 ansible/dep.yaml
 project-sa.json
 terraform/id_rsa
+ansible/inventory.yml
+terraform/kubeconfig
+terraform/gke_gcloud_auth_plugin_cache

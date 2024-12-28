@@ -1,6 +1,8 @@
 ---
 # Playbook for deploying Argo CD using Helm with shell commands
 - hosts: localhost
+  vars:
+      app_namespace: "{{ namespace | default('default') }}"
   tasks:
     # Check if helm exists
     - name: Check if Helm is installed
@@ -61,16 +63,11 @@
     - name: Apply Argo CD secret access
       shell: kubectl apply -f ./argocd-secret-access.yaml
  
-    # Apply the custom resource definitions needed for Argo CD to function.
-    - name: Apply Argo CD CRD
-      shell: kubectl apply -f ./application-argocd.yaml
-
-    # # Wait for the application to be synced and healthy
-    # - name: Wait for Online Boutique application to be ready
-    #   shell: |
-    #     kubectl get application online-boutique -n argocd -o custom-columns=SYNC:.status.sync.status,HEALTH:.status.health.status | grep -v SYNC | grep "Synced.*Healthy"
-    #   register: app_status
-    #   retries: 20
-    #   delay: 15
-    #   until: app_status.rc == 0
-    #   changed_when: false
+    # Template the application manifest with the correct namespace
+    - name: Template Application manifest
+      template:
+        src: application-argocd.yaml.j2
+        dest: /tmp/application-argocd.yaml
+    
+    - name: Apply Argo CD Application
+      shell: kubectl apply -f /tmp/application-argocd.yaml

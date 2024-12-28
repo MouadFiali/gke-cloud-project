@@ -1,5 +1,9 @@
 #!/bin/bash
 
+NAMESPACE="${1:-default}"
+TRACING="${2:-false}"
+LOGGING="${3:-false}"
+
 # Navigate to the ansible directory
 cd ../ansible
 
@@ -15,7 +19,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Run the deploy-argocd playbook
-ansible-playbook deploy-argocd.yaml
+ansible-playbook deploy-argocd.yaml --extra-vars "app_namespace=$APP_NAMESPACE tracing=$TRACING logging=$LOGGING"
 
 # Check if the first playbook ran successfully
 if [ $? -ne 0 ]; then
@@ -24,7 +28,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Run the prometheus-grafana playbook
-ansible-playbook prometheus-grafana.yml
+ansible-playbook prometheus-grafana.yml "tracing=$TRACING logging=$LOGGING"
 
 # Check if the second playbook ran successfully
 if [ $? -ne 0 ]; then

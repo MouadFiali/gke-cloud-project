@@ -27,6 +27,9 @@ metadata:
   {{- end }}
 ---
 {{- end }}
+
+{{- if .Values.opentelemetryCollector.logging.enabled }}
+# DaemonSet configuration for logging
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -93,6 +96,65 @@ spec:
           name: collector-gateway-config-template
       - name: collector-gateway-config
         emptyDir: {}
+{{- else }}
+# Deployment configuration for tracing only
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.opentelemetryCollector.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.opentelemetryCollector.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.opentelemetryCollector.name }}
+    spec:
+      {{- if .Values.serviceAccounts.create }}
+      serviceAccountName: {{ .Values.opentelemetryCollector.name }}
+      {{- else }}
+      serviceAccountName: default
+      {{- end }}
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        {{- if .Values.seccompProfile.enable }}
+        seccompProfile:
+          type: {{ .Values.seccompProfile.type }}
+        {{- end }}
+      containers:
+      - name: otel-gateway
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        image: otel/opentelemetry-collector-contrib:0.115.1@sha256:d2da12c4336a79758826700be9e21ecf4a9f7d945b7f8a58ba55ee3fa45427c8
+        volumeMounts:
+          - name: collector-gateway-config-template
+            mountPath: /conf/collector-gateway-config-template.yaml
+            subPath: collector-gateway-config-template.yaml
+          - name: collector-gateway-config
+            mountPath: /conf
+        args: 
+          - "--config=/conf/collector-gateway-config-template.yaml"
+      volumes:
+      - name: collector-gateway-config-template
+        configMap:
+          items:
+          - key: collector-gateway-config-template.yaml
+            path: collector-gateway-config-template.yaml
+          name: collector-gateway-config-template
+      - name: collector-gateway-config
+        emptyDir: {}
+{{- end }}
 ---
 apiVersion: v1
 kind: Service
@@ -114,8 +176,6 @@ kind: ConfigMap
 metadata:
   name: collector-gateway-config-template
   namespace: {{ .Release.Namespace }}
-# Open Telemetry Collector config
-# https://opentelemetry.io/docs/collector/configuration/
 data:
   collector-gateway-config-template.yaml: |
     receivers:
@@ -125,7 +185,7 @@ data:
             endpoint: "0.0.0.0:4317"
           http:
             endpoint: "0.0.0.0:4318"
-
+      {{- if .Values.opentelemetryCollector.logging.enabled }}
       filelog:
           include:
             - /var/log/pods/*/*/*.log
@@ -170,12 +230,10 @@ data:
             # Extract metadata from file path
             - type: regex_parser
               id: extract_metadata_from_filepath
-              # Pod UID is not always 36 characters long
               regex: '^.*\/(?P<namespace>[^_]+)_(?P<pod_name>[^_]+)_(?P<uid>[a-f0-9\-]{16,36})\/(?P<container_name>[^\._]+)\/(?P<restart_count>\d+)\.log$'
               parse_from: attributes["log.file.path"]
               cache:
-                size: 128 # default maximum amount of Pods per Node is 110
-            # Rename attributes
+                size: 128
             - type: move
               from: attributes["log.file.path"]
               to: resource["filename"]
@@ -190,15 +248,17 @@ data:
               to: resource["pod"]
             - type: add
               field: resource["cluster"]
-              value: 'your-cluster-name' # Set your cluster name here
+              value: 'your-cluster-name'
             - type: move
               from: attributes.log
-              to: body     
+              to: body
+      {{- end }}
 
     processors:
       batch:
         timeout: 1s
         send_batch_size: 1024
+      {{- if .Values.opentelemetryCollector.logging.enabled }}
       resource:
         attributes:
           - action: insert
@@ -207,30 +267,39 @@ data:
           - action: insert
             key: loki.resource.labels
             value: pod, namespace, container, cluster, filename
+      {{- end }}
 
     exporters:
+      {{- if .Values.opentelemetryCollector.tracing.enabled }}
       otlp:
         endpoint: tempo.monitoring.svc.cluster.local:4317
         tls:
           insecure: true
-
+      {{- end }}
+      {{- if .Values.opentelemetryCollector.logging.enabled }}
       loki:
         endpoint: http://loki-write.monitoring.svc.cluster.local:3100/loki/api/v1/push
         headers:
           X-Scope-OrgID: "1"
+      {{- end }}
 
     service:
       pipelines:
+        {{- if .Values.opentelemetryCollector.tracing.enabled }}
         traces:
           receivers: [otlp]
           exporters: [otlp]
         metrics:
           receivers: [otlp]
           exporters: [otlp]
+        {{- end }}
+        {{- if .Values.opentelemetryCollector.logging.enabled }}
         logs:
           receivers: [filelog]
           processors: [resource]
           exporters: [loki]
+        {{- end }}
+{{- end }}
 
 {{- if .Values.networkPolicies.create }}
 ---
