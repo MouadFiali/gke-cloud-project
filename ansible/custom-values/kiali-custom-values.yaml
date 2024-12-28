@@ -1,0 +1,27 @@
+cr:
+  create: true
+  namespace: istio-system
+  spec:
+    auth:
+      strategy: "anonymous"
+    external_services:
+      prometheus:
+        url: "http://kube-prometheus-stack-prometheus.monitoring:9090/"
+      grafana:
+        enabled: true
+        internal_url: "http://kube-prometheus-stack-grafana.monitoring"
+        external_url: "/"
+        auth:
+          password: "prom-operator"
+          username: "admin"
+          type: "basic"
+      # tracing:
+      #   enabled: true
+      #   internal_url: "http://tempo.monitoring:3100"
+      #   use_grpc: false
+      #   tempo_config:
+      #     datasource_uid: "tempo"
+      #     org_id: "1"
+        provider: "tempo"
+    server:
+      web_root: "/infra/monitoring/kiali"

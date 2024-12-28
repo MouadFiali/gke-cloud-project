@@ -45,7 +45,9 @@
     - name: Create ConfigMaps for dashboards
       shell: |
         kubectl create configmap istio-canary-dashboard --from-file=istio-canary-dashboard.json=dashboards/istio_canary_dashboard.json -n monitoring
-        kubectl create configmap load-generator-dashboard --from-file=load-generator-dashboard.json=dashboards/load_generator_dashboard.json -n monitoring  
+        kubectl create configmap load-generator-dashboard --from-file=load-generator-dashboard.json=dashboards/load_generator_dashboard.json -n monitoring
+        kubectl create configmap tempo-tracing-dashboard --from-file=tempo-tracing-dashboard.json=dashboards/tempo_tracing_dashboard.json -n monitoring
+        kubectl create configmap redis-exporter-dashboard --from-file=redis-exporter-dashboard.json=dashboards/redis_exporter_dashboard.json -n monitoring  
 
     # This task installs the Prometheus stack using Helm with custom values
     - name: Install Prometheus stack using Helm
@@ -55,10 +57,16 @@
         --values custom-values/prom-grafana-values.yaml
 
     # Label the ConfigMaps for Grafana to pick the dashboards
-    - name: Label dashboard ConfigMaps
+    - name: Add labels and annotations to ConfigMaps
       shell: |
         kubectl label configmap istio-canary-dashboard -n monitoring grafana_dashboard="1"
+        kubectl annotate configmap istio-canary-dashboard -n monitoring grafana-folder=istio-dashboards
         kubectl label configmap load-generator-dashboard -n monitoring grafana_dashboard="1"
+        kubectl annotate configmap load-generator-dashboard -n monitoring grafana-folder=custom-dashboards
+        kubectl label configmap tempo-tracing-dashboard -n monitoring grafana_dashboard="1"
+        kubectl annotate configmap tempo-tracing-dashboard -n monitoring grafana-folder=custom-dashboards
+        kubectl label configmap redis-exporter-dashboard -n monitoring grafana_dashboard="1"
+        kubectl annotate configmap redis-exporter-dashboard -n monitoring grafana-folder=custom-dashboards
     
     # Add Grafana Tempo helm repo
     - name: Add Grafana Tempo helm repo
@@ -71,10 +79,10 @@
         --namespace monitoring
         --values custom-values/tempo-values.yaml
 
-    # This task waits for all pods in the 'monitoring' namespace to be running.
-    - name: wait for All pods to be running
-      shell: kubectl get pods -n monitoring --field-selector=status.phase!=Running
-      register: prometheus_service_check
-      until: prometheus_service_check.stdout == ""
-      retries: 10
-      delay: 10
+    # # This task waits for all pods in the 'monitoring' namespace to be running.
+    # - name: wait for All pods to be running
+    #   shell: kubectl get pods -n monitoring --field-selector=status.phase!=Running
+    #   register: prometheus_service_check
+    #   until: prometheus_service_check.stdout == ""
+    #   retries: 10
+    #   delay: 10

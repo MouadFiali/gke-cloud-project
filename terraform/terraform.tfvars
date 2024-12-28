@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-gcp_project_id = "mosig-cloud-444913"
+gcp_project_id = "mosig-training"
+
+service_account_path = "../project-sa.json"
 
 region = "europe-west6"
 

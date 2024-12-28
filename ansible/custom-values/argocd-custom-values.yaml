@@ -1,0 +1,5 @@
+configs:
+  params:
+    server.rootpath: "/infra/monitoring/argocd"
+    server.basehref: "/infra/monitoring/argocd"
+    server.insecure: true

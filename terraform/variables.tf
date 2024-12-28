@@ -12,6 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+variable "gcpUser" {
+  type = string
+  description = "The GCP user to apply this config to"
+  default = "root"
+}
+
+variable "service_account_path" {
+  type        = string
+  description = "path to the service account key file"
+  
+}
+
 variable "gcp_project_id" {
   type        = string
   description = "The GCP project ID to apply this config to"

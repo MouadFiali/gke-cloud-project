@@ -1,0 +1,103 @@
+# Deployment mode configuration
+deploymentMode: "SimpleScalable"
+
+# Base Loki configuration
+loki:
+  auth_enabled: true
+  commonConfig:
+    path_prefix: /var/loki
+    replication_factor: 1
+
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: gcs
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+  storage:
+    bucketNames:
+      chunks: loki-storage-tsdb-24
+      ruler: loki-storage-tsdb-24
+    type: gcs
+    gcs:
+      chunkBufferSize: 0
+      requestTimeout: "0s"
+      enableHttp2: true
+
+  storage_config:
+    tsdb_shipper:
+      active_index_directory: /var/loki/tsdb-index
+      cache_location: /var/loki/tsdb-cache
+    hedging:
+      at: "250ms"
+      max_per_second: 20
+      up_to: 3
+
+  limits_config:
+    retention_period: 7d
+    split_queries_by_interval: 30m
+    max_query_parallelism: 4
+    max_entries_limit_per_query: 5000
+    max_cache_freshness_per_query: 1m
+    ingestion_rate_mb: 4
+    ingestion_burst_size_mb: 6
+    per_stream_rate_limit: 3MB
+    per_stream_rate_limit_burst: 5MB
+
+# Components configuration
+write:
+  replicas: 2
+  persistence:
+    size: 1Gi
+    enableStatefulSetAutoDeletePVC: true
+
+read:
+  replicas: 2
+  persistence:
+    size: 1Gi
+    enableStatefulSetAutoDeletePVC: true
+
+backend:
+  replicas: 1
+  persistence:
+    size: 1Gi
+    enableStatefulSetAutoDeletePVC: true
+
+gateway:
+  enabled: true
+  replicas: 2
+
+# Disable components we don't need
+ruler:
+  enabled: false
+
+monitoring:
+  selfMonitoring:
+    enabled: false
+  serviceMonitor:
+    enabled: false
+
+lokiCanary:
+    enabled: false
+
+enterprise:
+  enabled: false
+
+test:
+  enabled: false
+
+# Disable caching
+resultsCache:
+  enabled: false
+
+chunksCache:
+  enabled: false
+
+# Use existing service account
+serviceAccount:
+  create: false
+  name: "loki"

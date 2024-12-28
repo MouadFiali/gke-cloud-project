@@ -5,7 +5,7 @@ resource "google_compute_firewall" "allow_ssh_load_generator" {
 
   allow {
     protocol = "tcp"
-    ports    = ["22", "80", "443","9646","8089"]
+    ports    = ["22", "80", "443"]
   }
 
   # Allow SSH only from your IP address for security
@@ -23,7 +23,7 @@ resource "google_compute_firewall" "allow_internal_ports" {
     protocol = "tcp"
     ports    = ["9646", "8089"]
   }
-
+  
   # Allow internal access only
   source_ranges = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
   
@@ -67,7 +67,7 @@ resource "local_file" "ansible_inventory" {
     all:
       vars:
         ansible_user: root
-        ansible_ssh_private_key_file: ~/.ssh/google_compute_engine
+        ansible_ssh_private_key_file: ../terraform/id_rsa
         frontend_service_name: frontend-external
         kubernetes_namespace: app
 
@@ -78,51 +78,50 @@ resource "local_file" "ansible_inventory" {
   EOT
 
   depends_on = [
-    module.check_connectivity
+    null_resource.check_connectivity
   ]
 }
 
-module "check_connectivity" {
-  source  = "terraform-google-modules/gcloud/google"
-  version = "~> 3.0"
+resource "null_resource" "check_connectivity" {
+  triggers = {
+    instance_id = google_compute_instance.load_generator.id
+    firewall_id = google_compute_firewall.allow_ssh_load_generator.id
+  }
 
-  platform              = "linux"
-  additional_components = []
-
-  create_cmd_entrypoint = "bash"
-  create_cmd_body       = <<-EOT
-    #!/bin/bash
-    export PATH=/google-cloud-sdk/bin:$PATH
-    max_attempts=30
-    attempt=1
-    
-    # SSH options to avoid prompts and use key authentication
-    SSH_OPTS="--quiet --zone=${var.zone} --ssh-key-file=~/.ssh/google_compute_engine --strict-host-key-checking=no --force-key-file-overwrite"
-    
-    echo "Waiting for SSH connectivity..."
-    
-    until [ "$attempt" -gt "$max_attempts" ]; do
-      if gcloud compute ssh ${google_compute_instance.load_generator.name} \
-        $${SSH_OPTS} \
-        --command="echo 'SSH connection successful'" > /dev/null 2>&1; then
-        echo "SSH is ready!"
-        exit 0
-      fi
+  provisioner "local-exec" {
+    command = <<-EOT
+      #!/bin/bash
+      max_attempts=30
+      attempt=1
       
-      echo "Attempt $attempt/$max_attempts - Waiting for SSH... Retrying in 2 seconds..."
-      sleep 2
-      attempt=$((attempt + 1))
-    done
-    
-    echo "SSH connectivity check failed after $max_attempts attempts"
-    exit 1
-  EOT
+      # SSH options for secure, non-interactive connection
+      SSH_OPTS="-i ../terraform/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes"
+      
+      echo "Waiting for SSH connectivity..."
+      
+      until [ "$attempt" -gt "$max_attempts" ]; do
+        if ssh $${SSH_OPTS} ${var.gcpUser}@${google_compute_instance.load_generator.network_interface[0].access_config[0].nat_ip} \
+          "echo 'SSH connection successful'" > /dev/null 2>&1; then
+          echo "SSH is ready!"
+          exit 0
+        fi
+        
+        echo "Attempt $attempt/$max_attempts - Waiting for SSH... Retrying in 2 seconds..."
+        sleep 2
+        attempt=$((attempt + 1))
+      done
+      
+      echo "SSH connectivity check failed after $max_attempts attempts"
+      exit 1
+    EOT
+  }
 
-  module_depends_on = [
-    "${google_compute_instance.load_generator.id}",
-    "${google_compute_firewall.allow_ssh_load_generator.id}"
+  depends_on = [
+    google_compute_instance.load_generator,
+    google_compute_firewall.allow_ssh_load_generator
   ]
 }
+
 # Run Ansible playbook
 resource "null_resource" "install_tools_load_generator" {
   triggers = {

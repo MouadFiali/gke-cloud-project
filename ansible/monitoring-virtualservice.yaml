@@ -1,0 +1,41 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: monitoring-routes
+  namespace: istio-system
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - asm-ingress/asm-ingressgateway
+  http:
+    - match:
+        - uri:
+            exact: "/infra/monitoring/kiali"
+        - uri:
+            prefix: "/infra/monitoring/kiali/"
+      route:
+        - destination:
+            host: kiali.istio-system.svc.cluster.local
+            port:
+              number: 20001
+    - match:
+        - uri:
+            exact: "/infra/monitoring/grafana"
+        - uri:
+            prefix: "/infra/monitoring/grafana/"
+      route:
+        - destination:
+            host: kube-prometheus-stack-grafana.monitoring.svc.cluster.local
+            port:
+              number: 80
+    - match:
+        - uri:
+            exact: "/infra/monitoring/argocd"
+        - uri:
+            prefix: "/infra/monitoring/argocd/"
+      route:
+        - destination:
+            host: argocd-server.argocd.svc.cluster.local
+            port:
+              number: 80

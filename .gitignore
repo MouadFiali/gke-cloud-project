@@ -1,3 +1,5 @@
 terraform/.terraform/*
 ansible/cn.yaml
 ansible/dep.yaml
+project-sa.json
+terraform/id_rsa

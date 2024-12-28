@@ -1,18 +1,80 @@
 grafana:
-  service:
-    type: LoadBalancer
+  grafana.ini:
+    server:
+      root_url: "http://%(domain)s/infra/monitoring/grafana"
+      serve_from_sub_path: true
+  nameSpaceOverride: ""
   sidecar:
     dashboards:
       enabled: true
       label: grafana_dashboard
       labelValue: "1"
       searchNamespace: monitoring
+      folderAnnotation: grafana-folder
       provider:
         allowUiUpdates: true
         disableDelete: false
         folder: ""
         type: file
-        foldersFromFilesStructure: true
+        foldersFromFilesStructure: true  
+  
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: 'istio-dashboards'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+  dashboards:
+    default:
+      istio-mesh-dashboard:
+        gnetId: 7639
+        datasource: prometheus
+      istio-service-dashboard:
+        gnetId: 7636
+        datasource: prometheus
+      istio-workload-dashboard:
+        gnetId: 7630
+        datasource: prometheus
+      istio-performance-dashboard:
+        gnetId: 11829
+        datasource: prometheus
+      istio-control-plane-dashboard:
+        gnetId: 7645
+        datasource: prometheus
+      istio-wasm-extension-dashboard:
+        gnetId: 13277
+        datasource: prometheus
+  additionalDataSources:
+    - name: tempo
+      access: proxy
+      type: tempo
+      url: http://tempo:3100
+      editable: true
+      orgId: 1
+      version: 1
+      jsonData:
+        nodeGraph:
+          enabled: true
+        search:
+          filters:
+            - id: service-name
+              operator: "="
+              scope: resource
+              tag: service.name
+            - id: span-name
+              operator: "="
+              scope: span
+              tag: name
+        serviceMap:
+          datasourceUid: prometheus
+        tracesToMetrics:
+          datasourceUid: prometheus
 
 prometheus:
   prometheusSpec:

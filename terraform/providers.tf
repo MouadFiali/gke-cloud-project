@@ -18,10 +18,19 @@ terraform {
       source  = "hashicorp/google"
       version = "6.9.0"
     }
+    time = {
+      source = "hashicorp/time"
+      version = "~> 0.9.0"
+    }
   }
 }
 
+provider "kubernetes" {
+  config_path = "~/.kube/config"
+}
+
 provider "google" {
+  credentials = file(var.service_account_path)
   project = var.gcp_project_id
   region  = var.region
 }

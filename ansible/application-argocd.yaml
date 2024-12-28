@@ -1,19 +1,43 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: gke-cloud-project
+  name: online-boutique
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
-  project: default
+  destination:
+    namespace: app
+    server: https://kubernetes.default.svc
   source:
     repoURL: https://gitlab.com/Hamdane10/gke-cloud-project.git
     targetRevision: HEAD
-    path: kustomize
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: app
+    path: helm-chart
+    helm:
+      skipCrds: false
+      valuesObject:
+        networkPolicies:
+          create: true
+        sidecars:
+          create: true
+        serviceAccounts:
+          create: true
+        opentelemetryCollector:
+          create: true
+        googleCloudOperations:
+          tracing: true
+        frontend:
+          externalService: false
+          virtualService:
+            create: true
+            gateway:
+              name: asm-ingressgateway
+              namespace: asm-ingress
+              labelKey: asm
+              labelValue: ingressgateway
+        loadGenerator:
+          create: false
+  project: default
   syncPolicy:
     automated:
       prune: true

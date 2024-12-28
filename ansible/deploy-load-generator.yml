@@ -10,17 +10,20 @@
         dest: /tmp/docker-compose.yml
         mode: '0644'
 
-    - name: Get frontend IP address
-      command: kubectl get service frontend-external -n {{ kubernetes_namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-      register: frontend_ip
+    - name: Get ingress gateway IP address
+      shell: kubectl get svc asm-ingressgateway -n asm-ingress -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+      register: ingress_ip
       delegate_to: localhost
       changed_when: false
       become: false
+      retries: 10
+      delay: 5
+      until: ingress_ip.stdout != ""
 
     - name: Run docker compose
       shell: |
         cd /tmp && \
-        FRONTEND_ADDR_IP={{ frontend_ip.stdout }}:80 docker compose up -d
+        FRONTEND_ADDR_IP={{ ingress_ip.stdout }}:80 docker compose up -d
       args:
         executable: /bin/bash
     
@@ -59,7 +62,7 @@
         method: POST
         headers:
           Content-Type: "application/x-www-form-urlencoded"
-        body: "user_count=10&spawn_rate=1&host=http://{{ frontend_ip.stdout }}:80"
+        body: "user_count=10&spawn_rate=1&host=http://{{ ingress_ip.stdout }}:80"
         status_code: 200
       register: swarm_result
       retries: 3

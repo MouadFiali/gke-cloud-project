@@ -1,22 +1,53 @@
 ---
-# Playbook for deploying Argo CD on the local machine and using it to deploy applications.
+# Playbook for deploying Argo CD using Helm with shell commands
 - hosts: localhost
   tasks:
-    # Check if the Argo CD namespace already exists to avoid creating a duplicate.
+    # Check if helm exists
+    - name: Check if Helm is installed
+      shell: helm version
+      register: helm_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Fail if Helm is not installed
+      fail:
+        msg: "Helm is required but not installed"
+      when: helm_check.rc != 0
+
+    # Add Argo Helm repo
+    - name: Add Argo Helm repository
+      shell: helm repo add argo https://argoproj.github.io/argo-helm
+      register: repo_add
+      changed_when: '"has been added" in repo_add.stdout'
+      failed_when: 
+        - repo_add.rc != 0 
+        - '"already exists" not in repo_add.stderr'
+
+    # Update Helm repos
+    - name: Update Helm repositories
+      shell: helm repo update
+      changed_when: false
+
+    # Check if argocd namespace exists
     - name: Check if Argo CD namespace exists
       shell: kubectl get ns argocd
       register: ns_check
       failed_when: false
       changed_when: false
 
-    # Create the Argo CD namespace if it does not exist.
+    # Create the namespace if it doesn't exist
     - name: Create Argo CD namespace
       shell: kubectl create namespace argocd
       when: ns_check.rc != 0
 
-    # Deploy Argo CD using the official installation manifests.
-    - name: Deploy Argo CD
-      shell: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+    # Install Argo CD using Helm
+    - name: Deploy Argo CD using Helm
+      shell: >
+        helm upgrade --install argocd argo/argo-cd 
+        --namespace argocd 
+        --values custom-values/argocd-custom-values.yaml
+      register: helm_install
+      changed_when: '"has been upgraded" in helm_install.stdout or "has been installed" in helm_install.stdout'
 
     # Ensure all Argo CD services are running before proceeding.
     - name: Wait for all Argo CD services to be running
@@ -33,13 +64,13 @@
     # Apply the custom resource definitions needed for Argo CD to function.
     - name: Apply Argo CD CRD
       shell: kubectl apply -f ./application-argocd.yaml
-    
-    - name: Try to get app service
-      block:
-        - name: Wait for app service to have an external IP
-          shell: |
-            kubectl get svc frontend-external -n app -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-          register: nginx_service_check
-          until: nginx_service_check.stdout != ""
-          retries: 20
-          delay: 40
+
+    # # Wait for the application to be synced and healthy
+    # - name: Wait for Online Boutique application to be ready
+    #   shell: |
+    #     kubectl get application online-boutique -n argocd -o custom-columns=SYNC:.status.sync.status,HEALTH:.status.health.status | grep -v SYNC | grep "Synced.*Healthy"
+    #   register: app_status
+    #   retries: 20
+    #   delay: 15
+    #   until: app_status.rc == 0
+    #   changed_when: false

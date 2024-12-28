@@ -1,0 +1,446 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 31,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Trace ID"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "",
+                    "url": "/d/${__dashboard.uid}/tracing?var-traceId=${__value.text}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "filters": [
+            {
+              "id": "aab304b5",
+              "operator": "=",
+              "scope": "unscoped",
+              "tag": "kind",
+              "value": []
+            },
+            {
+              "id": "service-name",
+              "operator": "=",
+              "scope": "resource",
+              "tag": "service.name",
+              "value": [
+                "$serviceName"
+              ],
+              "valueType": "string"
+            },
+            {
+              "id": "span-name",
+              "operator": "=",
+              "scope": "span",
+              "tag": "name",
+              "value": []
+            },
+            {
+              "id": "status",
+              "operator": "=",
+              "scope": "intrinsic",
+              "tag": "status",
+              "valueType": "keyword"
+            },
+            {
+              "id": "min-duration",
+              "operator": ">",
+              "tag": "duration",
+              "value": "1ms",
+              "valueType": "duration"
+            },
+            {
+              "id": "max-duration",
+              "operator": "<",
+              "tag": "duration",
+              "value": "2ms",
+              "valueType": "duration"
+            },
+            {
+              "id": "duration-type",
+              "value": "trace"
+            }
+          ],
+          "limit": 20,
+          "query": "{resource.service.name=~\"$serviceName\" && name=~\"$spanName\" && status=$statusVar && $duration $bigger $biggerVal && $duration $less $lessVal}",
+          "queryType": "traceql",
+          "refId": "A",
+          "tableType": "traces"
+        }
+      ],
+      "title": "Traces",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 2,
+      "options": {},
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "limit": 20,
+          "query": "$traceId",
+          "queryType": "traceql",
+          "refId": "A",
+          "tableType": "traces"
+        }
+      ],
+      "title": "Trace $traceId",
+      "type": "traces"
+    },
+    {
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "id": 3,
+      "options": {
+        "edges": {},
+        "nodes": {}
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "limit": 20,
+          "query": "$traceId",
+          "queryType": "traceql",
+          "refId": "A",
+          "tableType": "traces"
+        }
+      ],
+      "title": "Node Graph for $traceId",
+      "type": "nodeGraph"
+    }
+  ],
+  "preload": true,
+  "schemaVersion": 40,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "5872cd824a64e83c59c3501e945db4e3",
+          "value": "5872cd824a64e83c59c3501e945db4e3"
+        },
+        "hide": 2,
+        "name": "traceId",
+        "options": [
+          {
+            "selected": false,
+            "text": "{}",
+            "value": "{}"
+          }
+        ],
+        "query": "{}",
+        "type": "custom"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "tempo",
+          "uid": "tempo"
+        },
+        "definition": "",
+        "includeAll": true,
+        "label": "Service Name",
+        "name": "serviceName",
+        "options": [],
+        "query": {
+          "label": "service.name",
+          "refId": "TempoDatasourceVariableQueryEditor-VariableQuery",
+          "type": 1
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "tempo",
+          "uid": "tempo"
+        },
+        "definition": "",
+        "includeAll": true,
+        "label": "Span Name",
+        "name": "spanName",
+        "options": [],
+        "query": {
+          "label": "span:name",
+          "refId": "TempoDatasourceVariableQueryEditor-VariableQuery",
+          "type": 1
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "unset",
+          "value": "unset"
+        },
+        "datasource": {
+          "type": "tempo",
+          "uid": "tempo"
+        },
+        "definition": "",
+        "description": "",
+        "label": "Status",
+        "name": "statusVar",
+        "options": [],
+        "query": {
+          "label": "status",
+          "refId": "TempoDatasourceVariableQueryEditor-VariableQuery",
+          "type": 1
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "duration",
+          "value": "duration"
+        },
+        "description": "",
+        "includeAll": false,
+        "label": "Duration",
+        "name": "duration",
+        "options": [
+          {
+            "selected": true,
+            "text": "span",
+            "value": "duration"
+          },
+          {
+            "selected": false,
+            "text": "trace",
+            "value": "traceDuration"
+          }
+        ],
+        "query": "span : duration, trace : traceDuration",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "text": ">",
+          "value": ">"
+        },
+        "hide": 1,
+        "name": "bigger",
+        "options": [
+          {
+            "selected": true,
+            "text": ">",
+            "value": ">"
+          },
+          {
+            "selected": false,
+            "text": ">=",
+            "value": ">="
+          }
+        ],
+        "query": ">,>=",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "text": "0ms",
+          "value": "0ms"
+        },
+        "description": "",
+        "hide": 1,
+        "name": "biggerVal",
+        "options": [
+          {
+            "selected": true,
+            "text": "0ms",
+            "value": "0ms"
+          }
+        ],
+        "query": "0ms",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "text": "<",
+          "value": "<"
+        },
+        "hide": 1,
+        "name": "less",
+        "options": [
+          {
+            "selected": true,
+            "text": "<",
+            "value": "<"
+          },
+          {
+            "selected": false,
+            "text": "<=",
+            "value": "<="
+          }
+        ],
+        "query": "<,<=",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "text": "5m",
+          "value": "5m"
+        },
+        "description": "",
+        "hide": 1,
+        "name": "lessVal",
+        "options": [
+          {
+            "selected": true,
+            "text": "5m",
+            "value": "5m"
+          }
+        ],
+        "query": "5m",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-5m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Tracing",
+  "uid": "ce6x37edqze2of",
+  "version": 46,
+  "weekStart": ""
+}

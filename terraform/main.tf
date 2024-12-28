@@ -16,13 +16,25 @@
 locals {
   base_apis = [
     "container.googleapis.com",
-    "monitoring.googleapis.com",
-    "cloudtrace.googleapis.com",
-    "cloudprofiler.googleapis.com",
-    "compute.googleapis.com"
+    "compute.googleapis.com",
+    "iam.googleapis.com",
+    "iamcredentials.googleapis.com"
   ]
   memorystore_apis = ["redis.googleapis.com"]
   cluster_name     = var.enable_autopilot ? google_container_cluster.gke_autopilot[0].name : google_container_cluster.gke_standard[0].name
+}
+
+# Generate a new SSH key
+resource "tls_private_key" "ssh" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+# Write the private key to a local file
+resource "local_sensitive_file" "private_key" {
+  content         = tls_private_key.ssh.private_key_pem
+  filename        = "${path.module}/id_rsa"
+  file_permission = "0600"
 }
 
 # Enable Google Cloud APIs
@@ -54,6 +66,10 @@ resource "google_container_cluster" "gke_autopilot" {
   # until you're ready (and certain you want) to destroy the cluster.
   deletion_protection = false
 
+  workload_identity_config {
+    workload_pool = "${var.gcp_project_id}.svc.id.goog"
+  }
+
   depends_on = [
     module.enable_google_apis
   ]
@@ -77,6 +93,10 @@ resource "google_container_cluster" "gke_standard" {
   }
 
   deletion_protection = false
+
+  workload_identity_config {
+    workload_pool = "${var.gcp_project_id}.svc.id.goog"
+  }
 
   depends_on = [
     module.enable_google_apis
@@ -119,5 +139,11 @@ resource "null_resource" "deploy_services_using_ansible" {
 
   provisioner "local-exec" {
     command = "cd ../scripts && ./run_ansible_playbooks.sh"
+  }
+}
+
+resource "google_compute_project_metadata" "default" {
+  metadata = {
+    ssh-keys = "${var.gcpUser}:${tls_private_key.ssh.public_key_openssh}"
   }
 }

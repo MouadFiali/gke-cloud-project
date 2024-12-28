@@ -52,14 +52,14 @@
       register: istiod_install
       failed_when: istiod_install.rc != 0
 
-    # Wait for istiod deployment to be ready
-    - name: Wait for istiod deployment to be ready
-      shell: |
-        kubectl wait --for=condition=Available deployment/istiod -n istio-system --timeout=300s
-      register: istiod_wait
-      failed_when: istiod_wait.rc != 0
-      retries: 3
-      delay: 10
+    # # Wait for istiod deployment to be ready
+    # - name: Wait for istiod deployment to be ready
+    #   shell: |
+    #     kubectl wait --for=condition=Available deployment/istiod -n istio-system --timeout=300s
+    #   register: istiod_wait
+    #   failed_when: istiod_wait.rc != 0
+    #   retries: 3
+    #   delay: 10
 
     # Add Flagger Helm repository
     - name: Add Flagger Helm repository
@@ -100,14 +100,14 @@
       register: flagger_install
       failed_when: flagger_install.rc != 0
 
-    # Wait for Flagger deployment to be ready
-    - name: Wait for Flagger deployment to be ready
-      shell: |
-        kubectl wait --for=condition=Available deployment/flagger -n istio-system --timeout=300s
-      register: flagger_wait
-      failed_when: flagger_wait.rc != 0
-      retries: 3
-      delay: 10
+    # # Wait for Flagger deployment to be ready
+    # - name: Wait for Flagger deployment to be ready
+    #   shell: |
+    #     kubectl wait --for=condition=Available deployment/flagger -n istio-system --timeout=300s
+    #   register: flagger_wait
+    #   failed_when: flagger_wait.rc != 0
+    #   retries: 3
+    #   delay: 10
 
     # Validate Flagger installation
     - name: Validate Flagger installation
@@ -126,3 +126,87 @@
         fi
       register: flagger_validation
       failed_when: flagger_validation.rc != 0
+
+    # Create and configure asm-ingress namespace
+    - name: Create asm-ingress namespace
+      shell: kubectl create namespace asm-ingress
+      register: create_asm_ingress
+      failed_when: create_asm_ingress.rc != 0 and 'AlreadyExists' not in create_asm_ingress.stderr
+
+    - name: Label asm-ingress namespace
+      shell: |
+        kubectl label namespace asm-ingress istio-injection=enabled
+        kubectl label namespace asm-ingress name=asm-ingress
+      register: label_asm_ingress
+      failed_when: label_asm_ingress.rc != 0
+      
+    # Deploy ASM ingress components
+    - name: Deploy ASM ingress gateway deployment and service
+      shell: kubectl apply -f https://github.com/GoogleCloudPlatform/anthos-service-mesh-samples/raw/main/docs/ingress-gateway-asm-manifests/base/deployment-service.yaml -n asm-ingress
+      register: deploy_asm_gateway
+      failed_when: deploy_asm_gateway.rc != 0
+
+    - name: Deploy ASM gateway resource
+      shell: kubectl apply -f  https://github.com/GoogleCloudPlatform/anthos-service-mesh-samples/raw/main/docs/ingress-gateway-asm-manifests/base/gateway.yaml  -n asm-ingress
+      register: deploy_gateway
+      failed_when: deploy_gateway.rc != 0
+
+    - name: Deploy ASM authorization policy
+      shell: kubectl apply -f https://github.com/GoogleCloudPlatform/anthos-service-mesh-samples/raw/main/docs/ingress-gateway-asm-manifests/with-authorization-policies/authorizationpolicy.yaml -n asm-ingress
+      register: deploy_authpolicy
+      failed_when: deploy_authpolicy.rc != 0
+
+    # Wait for ASM ingress gateway deployment to be ready
+    - name: Wait for ASM ingress gateway deployment
+      shell: kubectl wait --for=condition=Available deployment/asm-ingressgateway -n asm-ingress --timeout=300s
+      register: wait_asm_gateway
+      failed_when: wait_asm_gateway.rc != 0
+      retries: 3
+      delay: 10
+
+    # Add Kiali Helm repository
+    - name: Add Kiali Helm repository
+      shell: helm repo add kiali https://kiali.org/helm-charts
+      register: kiali_repo_add
+      failed_when: kiali_repo_add.rc != 0 and 'already exists' not in kiali_repo_add.stderr
+
+    # Update Helm repositories after adding Kiali
+    - name: Update Helm repositories for Kiali
+      shell: helm repo update
+      register: repo_update_kiali
+      failed_when: repo_update_kiali.rc != 0
+
+    # Install Kiali Operator
+    - name: Install Kiali Operator
+      shell: >
+        helm upgrade --install \
+          --values custom-values/kiali-custom-values.yaml \
+          --namespace kiali-operator \
+          --create-namespace \
+          kiali-operator kiali/kiali-operator
+      register: kiali_install
+      failed_when: kiali_install.rc != 0
+
+    # # Wait for Kiali operator deployment to be ready
+    # - name: Wait for Kiali operator deployment
+    #   shell: |
+    #     kubectl wait --for=condition=Available deployment/kiali-operator -n kiali-operator --timeout=300s
+    #   register: kiali_operator_wait
+    #   failed_when: kiali_operator_wait.rc != 0
+    #   retries: 10
+    #   delay: 10
+
+    # Apply routing rules for monitoring services in istio-system (Kiali and Grafana)
+    - name: Apply routing rules for monitoring services in istio-system (Kiali and Grafana and ArgoCD)
+      shell: kubectl apply -f ./monitoring-virtualservice.yaml
+
+    # Create and configure app namespace
+    - name: Create app namespace
+      shell: kubectl create namespace app
+      register: create_app
+      failed_when: create_app.rc != 0 and 'AlreadyExists' not in create_app.stderr
+
+    - name: Label app namespace for istio injection
+      shell: kubectl label namespace app istio-injection=enabled
+      register: label_app
+      failed_when: label_app.rc != 0
