@@ -146,8 +146,18 @@ resource "local_file" "kubeconfig" {
   file_permission = "0600"
 }
 
+resource "null_resource" "reload_kubectl_config" {
+  depends_on = [local_file.kubeconfig]
+
+  provisioner "local-exec" {
+    command = "kubectl config view --raw > /dev/null"
+  }
+}
+
 resource "null_resource" "deploy_services_using_ansible" {
-  depends_on = [module.gcloud]
+  depends_on = [
+    null_resource.reload_kubectl_config
+  ]
 
   provisioner "local-exec" {
     command = "cd ../scripts && ./run_ansible_playbooks.sh ${var.namespace} ${var.tracing} ${var.logging}"

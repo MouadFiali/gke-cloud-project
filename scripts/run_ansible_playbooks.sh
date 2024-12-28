@@ -28,7 +28,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Run the prometheus-grafana playbook
-ansible-playbook prometheus-grafana.yml "tracing=$TRACING logging=$LOGGING"
+ansible-playbook prometheus-grafana.yml --extra-vars "tracing=$TRACING logging=$LOGGING"
 
 # Check if the second playbook ran successfully
 if [ $? -ne 0 ]; then

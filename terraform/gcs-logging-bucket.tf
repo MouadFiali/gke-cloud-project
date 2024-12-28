@@ -1,6 +1,6 @@
 resource "time_sleep" "wait_for_cluster" {
   count      = var.logging ? 1 : 0
-  depends_on = [local_file.kubeconfig]
+  depends_on = [null_resource.reload_kubectl_config]
   create_duration = "60s"
 }
 
@@ -28,7 +28,7 @@ resource "kubernetes_service_account" "loki_sa" {
     create = "5m"
   }
   depends_on = [
-    local_file.kubeconfig,
+    null_resource.reload_kubectl_config,
     null_resource.deploy_services_using_ansible,
     time_sleep.wait_for_cluster
   ]

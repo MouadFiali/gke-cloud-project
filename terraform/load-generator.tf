@@ -68,8 +68,6 @@ resource "local_file" "ansible_inventory" {
       vars:
         ansible_user: root
         ansible_ssh_private_key_file: ../terraform/id_rsa
-        frontend_service_name: frontend-external
-        kubernetes_namespace: app
 
       hosts:
         load_generator:

@@ -2,66 +2,68 @@
 # Playbook for deploying Argo CD using Helm with shell commands
 - hosts: localhost
   vars:
-      app_namespace: "{{ namespace | default('default') }}"
+      app_namespace: "{{ app_namespace | default('default') }}"
+      tracing: "{{ tracing | default('false') }}"
+      logging: "{{ logging | default('false') }}"
   tasks:
     # Check if helm exists
-    - name: Check if Helm is installed
-      shell: helm version
-      register: helm_check
-      ignore_errors: true
-      changed_when: false
+    # - name: Check if Helm is installed
+    #   shell: helm version
+    #   register: helm_check
+    #   ignore_errors: true
+    #   changed_when: false
 
-    - name: Fail if Helm is not installed
-      fail:
-        msg: "Helm is required but not installed"
-      when: helm_check.rc != 0
+    # - name: Fail if Helm is not installed
+    #   fail:
+    #     msg: "Helm is required but not installed"
+    #   when: helm_check.rc != 0
 
-    # Add Argo Helm repo
-    - name: Add Argo Helm repository
-      shell: helm repo add argo https://argoproj.github.io/argo-helm
-      register: repo_add
-      changed_when: '"has been added" in repo_add.stdout'
-      failed_when: 
-        - repo_add.rc != 0 
-        - '"already exists" not in repo_add.stderr'
+    # # Add Argo Helm repo
+    # - name: Add Argo Helm repository
+    #   shell: helm repo add argo https://argoproj.github.io/argo-helm
+    #   register: repo_add
+    #   changed_when: '"has been added" in repo_add.stdout'
+    #   failed_when: 
+    #     - repo_add.rc != 0 
+    #     - '"already exists" not in repo_add.stderr'
 
-    # Update Helm repos
-    - name: Update Helm repositories
-      shell: helm repo update
-      changed_when: false
+    # # Update Helm repos
+    # - name: Update Helm repositories
+    #   shell: helm repo update
+    #   changed_when: false
 
-    # Check if argocd namespace exists
-    - name: Check if Argo CD namespace exists
-      shell: kubectl get ns argocd
-      register: ns_check
-      failed_when: false
-      changed_when: false
+    # # Check if argocd namespace exists
+    # - name: Check if Argo CD namespace exists
+    #   shell: kubectl get ns argocd
+    #   register: ns_check
+    #   failed_when: false
+    #   changed_when: false
 
-    # Create the namespace if it doesn't exist
-    - name: Create Argo CD namespace
-      shell: kubectl create namespace argocd
-      when: ns_check.rc != 0
+    # # Create the namespace if it doesn't exist
+    # - name: Create Argo CD namespace
+    #   shell: kubectl create namespace argocd
+    #   when: ns_check.rc != 0
 
-    # Install Argo CD using Helm
-    - name: Deploy Argo CD using Helm
-      shell: >
-        helm upgrade --install argocd argo/argo-cd 
-        --namespace argocd 
-        --values custom-values/argocd-custom-values.yaml
-      register: helm_install
-      changed_when: '"has been upgraded" in helm_install.stdout or "has been installed" in helm_install.stdout'
+    # # Install Argo CD using Helm
+    # - name: Deploy Argo CD using Helm
+    #   shell: >
+    #     helm upgrade --install argocd argo/argo-cd 
+    #     --namespace argocd 
+    #     --values custom-values/argocd-custom-values.yaml
+    #   register: helm_install
+    #   changed_when: '"has been upgraded" in helm_install.stdout or "has been installed" in helm_install.stdout'
 
-    # Ensure all Argo CD services are running before proceeding.
-    - name: Wait for all Argo CD services to be running
-      shell: kubectl get pods -n argocd --field-selector=status.phase!=Running
-      register: argocd_service_check
-      until: argocd_service_check.stdout == ""
-      retries: 10
-      delay: 10
+    # # Ensure all Argo CD services are running before proceeding.
+    # - name: Wait for all Argo CD services to be running
+    #   shell: kubectl get pods -n argocd --field-selector=status.phase!=Running
+    #   register: argocd_service_check
+    #   until: argocd_service_check.stdout == ""
+    #   retries: 10
+    #   delay: 10
 
-    # Apply the secret access configuration to Argo CD.
-    - name: Apply Argo CD secret access
-      shell: kubectl apply -f ./argocd-secret-access.yaml
+    # # Apply the secret access configuration to Argo CD.
+    # - name: Apply Argo CD secret access
+    #   shell: kubectl apply -f ./argocd-secret-access.yaml
  
     # Template the application manifest with the correct namespace
     - name: Template Application manifest
@@ -70,4 +72,4 @@
         dest: /tmp/application-argocd.yaml
     
     - name: Apply Argo CD Application
-      shell: kubectl apply -f /tmp/application-argocd.yaml
+      shell: kubectl apply -f /tmp/application-argocd.yaml --validate=false
