@@ -1,82 +1,39 @@
 stages:
+  - parse-version
+  - build
+  - deploy
   - validate
   - package-release
 
-variables:
-  RELEASES_DIR: "releases"
-  CHART_DIR: "helm-chart"
-
+include:
+  - local: '.gitlab-ci-deploy.yml'
+  - local: '.gitlab-ci-helm.yml'
+# Additional rules to ensure the chart pipeline runs after the first pipeline
 validate-version:
-  stage: validate
-  image: ubuntu:latest
-  before_script:
-    - echo "Installing required tools - yq & Git..."
-    - apt-get update && apt-get install -y git curl
-    - curl -sLo /usr/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.6/yq_linux_amd64
-    - chmod +x /usr/bin/yq
-  script:
-    - echo "Validating commit message for versioning..."
-    - |
-      # Ensure the pipeline is triggered by a commit message that includes #major, #minor, or #patch
-      if [[ ! "$CI_COMMIT_MESSAGE" =~ .*#(major|minor|patch).* ]]; then
-        echo "Commit message must include '#major', '#minor', or '#patch'."
-        exit 1
-      fi
-
-      # Read current version from Chart.yaml
-      VERSION=$(yq eval '.version' ${CHART_DIR}/Chart.yaml)
-      echo "Current version: ${VERSION}"
-
-      # Determine the new version based on the commit message
-      if [[ "$CI_COMMIT_MESSAGE" =~ .*#major.* ]]; then
-        NEW_VERSION=$(echo $VERSION | awk -F. '{$1 += 1; $2 = 0; $3 = 0; print $1 "." $2 "." $3}')
-      elif [[ "$CI_COMMIT_MESSAGE" =~ .*#minor.* ]]; then
-        NEW_VERSION=$(echo $VERSION | awk -F. '{$2 += 1; $3 = 0; print $1 "." $2 "." $3}')
-      elif [[ "$CI_COMMIT_MESSAGE" =~ .*#patch.* ]]; then
-        NEW_VERSION=$(echo $VERSION | awk -F. '{$3 += 1; print $1 "." $2 "." $3}')
-      fi
-
-      echo "New version: ${NEW_VERSION}"
-
-      # Update Chart.yaml with the new version
-      yq eval ".version = \"$NEW_VERSION\"" -i ${CHART_DIR}/Chart.yaml
-
-      # Commit the updated Chart.yaml
-      git config --global user.name "GitLab CI"
-      git config --global user.email "ci@example.com"
-      git add ${CHART_DIR}/Chart.yaml
-      git commit -m "CI - Update chart version to ${NEW_VERSION}"
-      git push https://gitlab-ci-token:${GITLAB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git HEAD:${CI_COMMIT_REF_NAME}
-  rules: 
-    - if: '$CI_COMMIT_MESSAGE =~ /#(major|minor|patch)/'
-      changes:  
-        - helm-chart/**/*
+  needs:
+    - job: deploy-adservice
+      optional: true
+    - job: deploy-cartservice
+      optional: true
+    - job: deploy-checkoutservice
+      optional: true
+    - job: deploy-currencyservice
+      optional: true
+    - job: deploy-emailservice
+      optional: true
+    - job: deploy-frontend
+      optional: true
+    - job: deploy-paymentservice
+      optional: true
+    - job: deploy-productcatalogservice
+      optional: true
+    - job: deploy-recommendationservice
+      optional: true
+    - job: deploy-shippingservice
+      optional: true
+    - job: deploy-shoppingassistantservice
+      optional: true
 
 package-release-chart:
-  stage: package-release
-  image: ubuntu:latest
-  before_script:
-    - echo "Installing required tools - helm..."
-    - apt-get update && apt-get install -y curl git
-    - curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-    - chmod 700 get_helm.sh
-    - ./get_helm.sh
-  script:
-    - echo "Pulling latest changes..."
-    - git config --global user.name "GitLab CI"
-    - git config --global user.email "ci@example.com"
-    - git pull origin ${CI_COMMIT_REF_NAME}
-    - echo "Packaging Helm chart..."
-    - mkdir -p ${RELEASES_DIR}
-    - helm package ${CHART_DIR} --destination ${RELEASES_DIR}
-    - echo "Chart packaged and stored in ${RELEASES_DIR}/"
-    - echo "Pushing release to repository..."
-    - git add ${RELEASES_DIR}
-    - git commit -m "CI - Update releases with new chart version"
-    - git push https://gitlab-ci-token:${GITLAB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git HEAD:${CI_COMMIT_REF_NAME}
-  dependencies:
-    - validate-version
-  rules: 
-    - if: '$CI_COMMIT_MESSAGE =~ /#(major|minor|patch)/'
-      changes:  
-        - helm-chart/**/*
+  needs:
+    - job: validate-version
