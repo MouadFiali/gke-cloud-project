@@ -299,8 +299,7 @@ data:
           processors: [resource]
           exporters: [loki]
         {{- end }}
-{{- end }}
-
+        
 {{- if .Values.networkPolicies.create }}
 ---
 apiVersion: networking.k8s.io/v1
