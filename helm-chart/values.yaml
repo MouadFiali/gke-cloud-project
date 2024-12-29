@@ -14,7 +14,7 @@
 
 # Default values for onlineboutique.
 # This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
+# Declare variables to be passed into your templates
 
 images:
   repository: registry.gitlab.com/hamdane10/gke-cloud-project
