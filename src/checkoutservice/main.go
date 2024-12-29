@@ -63,6 +63,7 @@ func init() {
 
 type checkoutService struct {
 	pb.UnimplementedCheckoutServiceServer
+	businessLogger *BusinessLogger
 
 	productCatalogSvcAddr string
 	productCatalogSvcConn *grpc.ClientConn
@@ -106,6 +107,8 @@ func main() {
 	}
 
 	svc := new(checkoutService)
+	svc.businessLogger = NewBusinessLogger(log)
+
 	mustMapEnv(&svc.shippingSvcAddr, "SHIPPING_SERVICE_ADDR")
 	mustMapEnv(&svc.productCatalogSvcAddr, "PRODUCT_CATALOG_SERVICE_ADDR")
 	mustMapEnv(&svc.cartSvcAddr, "CART_SERVICE_ADDR")
@@ -227,15 +230,16 @@ func (cs *checkoutService) Watch(req *healthpb.HealthCheckRequest, ws healthpb.H
 }
 
 func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (*pb.PlaceOrderResponse, error) {
-	log.Infof("[PlaceOrder] user_id=%q user_currency=%q", req.UserId, req.UserCurrency)
-
+	
 	orderID, err := uuid.NewUUID()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to generate order uuid")
-	}
+        log.WithError(err).Error("Failed to generate order UUID")
+        return nil, status.Errorf(codes.Internal, "failed to generate order uuid")
+    }
 
 	prep, err := cs.prepareOrderItemsAndShippingQuoteFromCart(ctx, req.UserId, req.UserCurrency, req.Address)
 	if err != nil {
+		cs.businessLogger.LogCartPreparationError(req.UserId, err.Error())
 		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 
@@ -243,6 +247,7 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 		Units: 0,
 		Nanos: 0}
 	total = money.Must(money.Sum(total, *prep.shippingCostLocalized))
+
 	for _, it := range prep.orderItems {
 		multPrice := money.MultiplySlow(*it.Cost, uint32(it.GetItem().GetQuantity()))
 		total = money.Must(money.Sum(total, multPrice))
@@ -250,30 +255,46 @@ func (cs *checkoutService) PlaceOrder(ctx context.Context, req *pb.PlaceOrderReq
 
 	txID, err := cs.chargeCard(ctx, &total, req.CreditCard)
 	if err != nil {
+		cs.businessLogger.LogPaymentFailure(orderID.String(), err.Error())
 		return nil, status.Errorf(codes.Internal, "failed to charge card: %+v", err)
 	}
-	log.Infof("payment went through (transaction_id: %s)", txID)
 
 	shippingTrackingID, err := cs.shipOrder(ctx, req.Address, prep.cartItems)
 	if err != nil {
+		cs.businessLogger.LogShippingFailure(orderID.String(), err.Error())
 		return nil, status.Errorf(codes.Unavailable, "shipping error: %+v", err)
 	}
 
-	_ = cs.emptyUserCart(ctx, req.UserId)
+	if err := cs.emptyUserCart(ctx, req.UserId); err != nil {
+        cs.businessLogger.LogCartEmptyFailure(req.UserId, err.Error())
+    }
 
 	orderResult := &pb.OrderResult{
-		OrderId:            orderID.String(),
-		ShippingTrackingId: shippingTrackingID,
-		ShippingCost:       prep.shippingCostLocalized,
-		ShippingAddress:    req.Address,
-		Items:              prep.orderItems,
-	}
+        OrderId:            orderID.String(),
+        ShippingTrackingId: shippingTrackingID,
+        ShippingCost:       prep.shippingCostLocalized,
+        ShippingAddress:    req.Address,
+        Items:              prep.orderItems,
+    }
 
 	if err := cs.sendOrderConfirmation(ctx, req.Email, orderResult); err != nil {
-		log.Warnf("failed to send order confirmation to %q: %+v", req.Email, err)
-	} else {
-		log.Infof("order confirmation email sent to %q", req.Email)
+		cs.businessLogger.LogEmailConfirmationFailure(orderID.String(), req.Email, err.Error())
 	}
+
+	// Log final order details with status
+    cs.businessLogger.LogOrderEvent(OrderLogger{
+        OrderID:          orderID.String(),
+        UserID:           req.UserId,
+        Timestamp:        time.Now(),
+        TotalAmount:      &total,
+        Currency:         req.UserCurrency,
+        ItemCount:        len(prep.orderItems),
+        ShippingAddress:  req.Address,
+        PaymentMethod:    req.CreditCard.GetCreditCardNumber(),
+        TransactionID:    txID,
+        Status:          "completed",
+    })
+	
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
 	return resp, nil
 }

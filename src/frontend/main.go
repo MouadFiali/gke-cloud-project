@@ -85,6 +85,8 @@ type frontendServer struct {
 	collectorConn *grpc.ClientConn
 
 	shoppingAssistantSvcAddr string
+
+	businessLogger *BusinessLogger
 }
 
 func main() {
@@ -102,7 +104,8 @@ func main() {
 	log.Out = os.Stdout
 
 	svc := new(frontendServer)
-
+	svc.businessLogger = NewBusinessLogger(log)
+	
 	otel.SetTextMapPropagator(
 		propagation.NewCompositeTextMapPropagator(
 			propagation.TraceContext{}, propagation.Baggage{}))

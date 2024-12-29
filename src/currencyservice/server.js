@@ -82,6 +82,8 @@ const PORT = process.env.PORT;
 const shopProto = _loadProto(MAIN_PROTO_PATH).hipstershop;
 const healthProto = _loadProto(HEALTH_PROTO_PATH).grpc.health.v1;
 
+const businessLogger = require('./businessLogger');
+
 /**
  * Helper function that loads a protobuf file.
  */
@@ -123,7 +125,6 @@ function _carry (amount) {
  * Lists the supported currencies
  */
 function getSupportedCurrencies (call, callback) {
-  logger.info('Getting supported currencies...');
   _getCurrencyData((data) => {
     callback(null, {currency_codes: Object.keys(data)});
   });
@@ -132,12 +133,18 @@ function getSupportedCurrencies (call, callback) {
 /**
  * Converts between currencies
  */
-function convert (call, callback) {
+function convert(call, callback) {
   try {
     _getCurrencyData((data) => {
       const request = call.request;
 
-      // Convert: from_currency --> EUR
+      // Track currency conversion
+      businessLogger.trackConversion(
+        request.from.currency_code,
+        request.to_code
+      );
+
+      // Rest of the conversion logic remains the same
       const from = request.from;
       const euros = _carry({
         units: from.units / data[from.currency_code],
@@ -146,7 +153,6 @@ function convert (call, callback) {
 
       euros.nanos = Math.round(euros.nanos);
 
-      // Convert: EUR --> to_currency
       const result = _carry({
         units: euros.units * data[request.to_code],
         nanos: euros.nanos * data[request.to_code]
@@ -156,7 +162,6 @@ function convert (call, callback) {
       result.nanos = Math.floor(result.nanos);
       result.currency_code = request.to_code;
 
-      logger.info(`conversion request successful`);
       callback(null, result);
     });
   } catch (err) {

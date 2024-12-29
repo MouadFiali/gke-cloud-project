@@ -15,6 +15,7 @@
 const cardValidator = require('simple-card-validator');
 const { v4: uuidv4 } = require('uuid');
 const pino = require('pino');
+const businessLogger = require('./businessLogger');
 
 const logger = pino({
   name: 'paymentservice-charge',
@@ -66,21 +67,42 @@ module.exports = function charge (request) {
     card_type: cardType,
     valid
   } = cardInfo.getCardDetails();
+  const cardLastFour = cardNumber.slice(-4);
+  try {
+    if (!valid) {
+      businessLogger.logTransaction(false, amount, cardType, cardLastFour, null, 'invalid_card');
+      throw new InvalidCreditCard();
+    }
 
-  if (!valid) { throw new InvalidCreditCard(); }
+    if (!(cardType === 'visa' || cardType === 'mastercard')) {
+      businessLogger.logTransaction(false, amount, cardType, cardLastFour, null, 'unsupported_card_type');
+      throw new UnacceptedCreditCard(cardType);
+    }
 
-  // Only VISA and mastercard is accepted, other card types (AMEX, dinersclub) will
-  // throw UnacceptedCreditCard error.
-  if (!(cardType === 'visa' || cardType === 'mastercard')) { throw new UnacceptedCreditCard(cardType); }
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+    const { credit_card_expiration_year: year, credit_card_expiration_month: month } = creditCard;
+    
+    if ((currentYear * 12 + currentMonth) > (year * 12 + month)) {
+      businessLogger.logTransaction(false, amount, cardType, cardLastFour, null, 'expired_card');
+      throw new ExpiredCreditCard(cardNumber.replace('-', ''), month, year);
+    }
 
-  // Also validate expiration is > today.
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
-  const { credit_card_expiration_year: year, credit_card_expiration_month: month } = creditCard;
-  if ((currentYear * 12 + currentMonth) > (year * 12 + month)) { throw new ExpiredCreditCard(cardNumber.replace('-', ''), month, year); }
+    const transactionId = uuidv4();
 
-  logger.info(`Transaction processed: ${cardType} ending ${cardNumber.substr(-4)} \
-    Amount: ${amount.currency_code}${amount.units}.${amount.nanos}`);
+    // Log successful transaction
+    businessLogger.logTransaction(true, amount, cardType, cardLastFour, transactionId);
 
-  return { transaction_id: uuidv4() };
+    // Remove the detailed logging since we have it in business metrics
+    logger.info(`Transaction processed successfully`);
+
+    return { transaction_id: transactionId };
+  } catch (error) {
+    if (error instanceof CreditCardError) {
+      throw error;
+    }
+    // Unexpected errors
+    businessLogger.logTransaction(false, amount, cardType, cardLastFour, null, 'system_error');
+    throw error;
+  }
 };

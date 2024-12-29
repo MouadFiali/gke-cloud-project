@@ -7,9 +7,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Distributed;
 using cartservice.cartstore;
 using cartservice.services;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
+using cartservice.logging;
 
 namespace cartservice
 {
@@ -23,7 +26,6 @@ namespace cartservice
         public IConfiguration Configuration { get; }
         
         // This method gets called by the runtime. Use this method to add services to the container.
-        // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
             string redisAddress = Configuration["REDIS_ADDR"];
@@ -31,13 +33,25 @@ namespace cartservice
             string spannerConnectionString = Configuration["SPANNER_CONNECTION_STRING"];
             string alloyDBConnectionString = Configuration["ALLOYDB_PRIMARY_IP"];
 
+            // Add logging first
+            services.AddLogging(logging =>
+            {
+                logging.AddConsole();
+                logging.SetMinimumLevel(LogLevel.Debug);
+            });
+
             if (!string.IsNullOrEmpty(redisAddress))
             {
                 services.AddStackExchangeRedisCache(options =>
                 {
                     options.Configuration = redisAddress;
                 });
-                services.AddSingleton<ICartStore, RedisCartStore>();
+                services.AddSingleton<ICartStore>(sp =>
+                {
+                    var cache = sp.GetRequiredService<IDistributedCache>();
+                    var logger = sp.GetRequiredService<ILogger<RedisCartStore>>();
+                    return new RedisCartStore(cache, logger);
+                });
             }
             else if (!string.IsNullOrEmpty(spannerProjectId) || !string.IsNullOrEmpty(spannerConnectionString))
             {
@@ -45,17 +59,24 @@ namespace cartservice
             }
             else if (!string.IsNullOrEmpty(alloyDBConnectionString))
             {
-                Console.WriteLine("Creating AlloyDB cart store");
+                services.AddLogging(builder => builder.AddConsole())
+                    .Configure<LoggerFilterOptions>(options => options.MinLevel = LogLevel.Information);
                 services.AddSingleton<ICartStore, AlloyDBCartStore>();
             }
             else
             {
-                Console.WriteLine("Redis cache host(hostname+port) was not specified. Starting a cart service using in memory store");
+                services.AddLogging(builder => builder.AddConsole())
+                    .Configure<LoggerFilterOptions>(options => options.MinLevel = LogLevel.Information);
                 services.AddDistributedMemoryCache();
-                services.AddSingleton<ICartStore, RedisCartStore>();
+                services.AddSingleton<ICartStore>(sp =>
+                {
+                    var cache = sp.GetRequiredService<IDistributedCache>();
+                    var logger = sp.GetRequiredService<ILogger<RedisCartStore>>();
+                    return new RedisCartStore(cache, logger);
+                });
             }
 
-
+            services.AddSingleton<ICartBusinessLogger, CartBusinessLogger>();
             services.AddGrpc();
         }
 

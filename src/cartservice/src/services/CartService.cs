@@ -17,6 +17,7 @@ using System.Threading.Tasks;
 using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using cartservice.cartstore;
+using cartservice.logging;
 using Hipstershop;
 
 namespace cartservice.services
@@ -25,27 +26,86 @@ namespace cartservice.services
     {
         private readonly static Empty Empty = new Empty();
         private readonly ICartStore _cartStore;
+        private readonly ICartBusinessLogger _businessLogger;
 
-        public CartService(ICartStore cartStore)
+        public CartService(ICartStore cartStore, ICartBusinessLogger businessLogger)
         {
             _cartStore = cartStore;
+            _businessLogger = businessLogger;
         }
 
         public async override Task<Empty> AddItem(AddItemRequest request, ServerCallContext context)
         {
-            await _cartStore.AddItemAsync(request.UserId, request.Item.ProductId, request.Item.Quantity);
-            return Empty;
+            try 
+            {
+                await _cartStore.AddItemAsync(request.UserId, request.Item.ProductId, request.Item.Quantity);
+                _businessLogger.LogAddToCart(
+                    userId: request.UserId,
+                    productId: request.Item.ProductId,
+                    quantity: request.Item.Quantity
+                );
+                return Empty;
+            }
+            catch (Exception ex)
+            {
+                _businessLogger.LogError(
+                    eventType: "add_to_cart",
+                    userId: request.UserId,
+                    errorDetails: ex.Message
+                );
+                throw;
+            }
         }
 
-        public override Task<Cart> GetCart(GetCartRequest request, ServerCallContext context)
+        public override async Task<Cart> GetCart(GetCartRequest request, ServerCallContext context)
         {
-            return _cartStore.GetCartAsync(request.UserId);
+            try 
+            {
+                var cart = await _cartStore.GetCartAsync(request.UserId);
+                // Only log if cart has items, as empty cart views aren't as business relevant
+                if (cart.Items.Count > 0)
+                {
+                    _businessLogger.LogViewCart(
+                        userId: request.UserId,
+                        cartId: request.UserId, // Using userId as cartId since they're 1:1
+                        totalItems: cart.Items.Count
+                    );
+                }
+                return cart;
+            }
+            catch (Exception ex)
+            {
+                _businessLogger.LogError(
+                    eventType: "view_cart",
+                    userId: request.UserId,
+                    errorDetails: ex.Message
+                );
+                throw;
+            }
         }
 
         public async override Task<Empty> EmptyCart(EmptyCartRequest request, ServerCallContext context)
         {
-            await _cartStore.EmptyCartAsync(request.UserId);
-            return Empty;
+            try 
+            {
+                var cartBeforeEmpty = await _cartStore.GetCartAsync(request.UserId);
+                // Only log empty cart operation if the cart actually had items
+                if (cartBeforeEmpty.Items.Count > 0)
+                {
+                    await _cartStore.EmptyCartAsync(request.UserId);
+                    _businessLogger.LogEmptyCart(request.UserId);
+                }
+                return Empty;
+            }
+            catch (Exception ex)
+            {
+                _businessLogger.LogError(
+                    eventType: "empty_cart",
+                    userId: request.UserId,
+                    errorDetails: ex.Message
+                );
+                throw;
+            }
         }
     }
 }

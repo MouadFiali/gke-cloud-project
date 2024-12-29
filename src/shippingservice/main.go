@@ -88,6 +88,8 @@ func main() {
 		srv = grpc.NewServer()
 	}
 	svc := &server{}
+	svc.businessLogger = NewBusinessLogger(log)
+
 	pb.RegisterShippingServiceServer(srv, svc)
 	healthpb.RegisterHealthServer(srv, svc)
 	log.Infof("Shipping Service listening on port %s", port)
@@ -102,6 +104,7 @@ func main() {
 // server controls RPC service responses.
 type server struct {
 	pb.UnimplementedShippingServiceServer
+	businessLogger *BusinessLogger
 }
 
 // Check is for health checking.
@@ -115,30 +118,49 @@ func (s *server) Watch(req *healthpb.HealthCheckRequest, ws healthpb.Health_Watc
 
 // GetQuote produces a shipping quote (cost) in USD.
 func (s *server) GetQuote(ctx context.Context, in *pb.GetQuoteRequest) (*pb.GetQuoteResponse, error) {
-	log.Info("[GetQuote] received request")
-	defer log.Info("[GetQuote] completed request")
+	if in == nil {
+        if s.businessLogger != nil {
+            s.businessLogger.LogQuoteError(nil, "received nil request")
+        }
+        return nil, status.Errorf(codes.InvalidArgument, "received nil request")
+    }
 
 	// 1. Generate a quote based on the total number of items to be shipped.
 	quote := CreateQuoteFromCount(0)
 
 	// 2. Generate a response.
-	return &pb.GetQuoteResponse{
-		CostUsd: &pb.Money{
-			CurrencyCode: "USD",
-			Units:        int64(quote.Dollars),
-			Nanos:        int32(quote.Cents * 10000000)},
-	}, nil
+	response := &pb.GetQuoteResponse{
+        CostUsd: &pb.Money{
+            CurrencyCode: "USD",
+            Units:        int64(quote.Dollars),
+            Nanos:        int32(quote.Cents * 10000000)},
+    }
+
+    // Log the quote request
+	if s.businessLogger != nil {
+        s.businessLogger.LogQuoteRequest(in.Address, response.CostUsd)
+    }
+
+    return response, nil
 
 }
 
 // ShipOrder mocks that the requested items will be shipped.
 // It supplies a tracking ID for notional lookup of shipment delivery status.
 func (s *server) ShipOrder(ctx context.Context, in *pb.ShipOrderRequest) (*pb.ShipOrderResponse, error) {
-	log.Info("[ShipOrder] received request")
-	defer log.Info("[ShipOrder] completed request")
-	// 1. Create a Tracking ID
+
+	if in == nil || in.Address == nil {
+        if s.businessLogger != nil {
+            s.businessLogger.LogShippingError(nil, "received nil request or address")
+        }
+        return nil, status.Errorf(codes.InvalidArgument, "received nil request or address")
+    }
 	baseAddress := fmt.Sprintf("%s, %s, %s", in.Address.StreetAddress, in.Address.City, in.Address.State)
 	id := CreateTrackingId(baseAddress)
+
+	if s.businessLogger != nil {
+        s.businessLogger.LogShippingOrder(in.Address, id)
+    }
 
 	// 2. Generate a response.
 	return &pb.ShipOrderResponse{

@@ -35,6 +35,7 @@ from opentelemetry.instrumentation.grpc import GrpcInstrumentorServer
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from business_logger import BusinessLogger
 
 import googlecloudprofiler
 
@@ -59,6 +60,7 @@ class BaseEmailService(demo_pb2_grpc.EmailServiceServicer):
 
 class EmailService(BaseEmailService):
   def __init__(self):
+    self.business_logger = BusinessLogger()
     raise Exception('cloud mail client not implemented')
     super().__init__()
 
@@ -89,25 +91,42 @@ class EmailService(BaseEmailService):
     try:
       confirmation = template.render(order = order)
     except TemplateError as err:
-      context.set_details("An error occurred when preparing the confirmation mail.")
-      logger.error(err.message)
-      context.set_code(grpc.StatusCode.INTERNAL)
-      return demo_pb2.Empty()
+        self.business_logger.log_template_error(str(err))
+        context.set_details("An error occurred when preparing the confirmation mail.")
+        logger.error(err.message)
+        context.set_code(grpc.StatusCode.INTERNAL)
+        return demo_pb2.Empty()
 
     try:
-      EmailService.send_email(self.client, email, confirmation)
+        EmailService.send_email(self.client, email, confirmation)
+        self.business_logger.log_email_success(email, order.order_id)
     except GoogleAPICallError as err:
-      context.set_details("An error occurred when sending the email.")
-      print(err.message)
-      context.set_code(grpc.StatusCode.INTERNAL)
-      return demo_pb2.Empty()
+        self.business_logger.log_email_failure(email, str(err))
+        context.set_details("An error occurred when sending the email.")
+        print(err.message)
+        context.set_code(grpc.StatusCode.INTERNAL)
+        return demo_pb2.Empty()
 
     return demo_pb2.Empty()
 
 class DummyEmailService(BaseEmailService):
+  def __init__(self):
+        super().__init__()
+        self.business_logger = BusinessLogger()
   def SendOrderConfirmation(self, request, context):
-    logger.info('A request to send order confirmation email to {} has been received.'.format(request.email))
-    return demo_pb2.Empty()
+      try:
+          # Extract order ID from the order if available
+          order_id = getattr(request.order, 'order_id', 'unknown')
+          
+          # Simulate email sending in dummy mode
+          self.business_logger.log_email_success(request.email, order_id)
+          logger.info('A request to send order confirmation email to {} has been received.'.format(request.email))
+          return demo_pb2.Empty()
+      except Exception as e:
+          self.business_logger.log_email_failure(request.email, str(e))
+          context.set_code(grpc.StatusCode.INTERNAL)
+          context.set_details("An error occurred while sending the email.")
+          return demo_pb2.Empty()
 
 class HealthCheck():
   def Check(self, request, context):

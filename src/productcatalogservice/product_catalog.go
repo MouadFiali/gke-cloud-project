@@ -28,6 +28,7 @@ import (
 type productCatalog struct {
 	pb.UnimplementedProductCatalogServiceServer
 	catalog pb.ListProductsResponse
+	businessLogger *BusinessLogger
 }
 
 func (p *productCatalog) Check(ctx context.Context, req *healthpb.HealthCheckRequest) (*healthpb.HealthCheckResponse, error) {
@@ -40,8 +41,8 @@ func (p *productCatalog) Watch(req *healthpb.HealthCheckRequest, ws healthpb.Hea
 
 func (p *productCatalog) ListProducts(context.Context, *pb.Empty) (*pb.ListProductsResponse, error) {
 	time.Sleep(extraLatency)
-
-	return &pb.ListProductsResponse{Products: p.parseCatalog()}, nil
+	products := p.parseCatalog()
+	return &pb.ListProductsResponse{Products: products}, nil
 }
 
 func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductRequest) (*pb.Product, error) {
@@ -55,12 +56,18 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 	}
 
 	if found == nil {
+		p.businessLogger.LogProductNotFound(req.Id)
 		return nil, status.Errorf(codes.NotFound, "no product with ID %s", req.Id)
 	}
+
+	p.businessLogger.LogProductView(found)
+
 	return found, nil
 }
 
 func (p *productCatalog) SearchProducts(ctx context.Context, req *pb.SearchProductsRequest) (*pb.SearchProductsResponse, error) {
+	start := time.Now()
+
 	time.Sleep(extraLatency)
 
 	var ps []*pb.Product
@@ -71,6 +78,9 @@ func (p *productCatalog) SearchProducts(ctx context.Context, req *pb.SearchProdu
 		}
 	}
 
+	latencyMs := float64(time.Since(start)) / float64(time.Millisecond)
+    p.businessLogger.LogSearchQuery(req.Query, len(ps), latencyMs)
+
 	return &pb.SearchProductsResponse{Results: ps}, nil
 }
 
@@ -78,8 +88,10 @@ func (p *productCatalog) parseCatalog() []*pb.Product {
 	if reloadCatalog || len(p.catalog.Products) == 0 {
 		err := loadCatalog(&p.catalog)
 		if err != nil {
+			p.businessLogger.LogCatalogOperation("reload_catalog", 0, "error")
 			return []*pb.Product{}
 		}
+		p.businessLogger.LogCatalogOperation("reload_catalog", len(p.catalog.Products), "success")
 	}
 
 	return p.catalog.Products

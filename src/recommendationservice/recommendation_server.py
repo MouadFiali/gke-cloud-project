@@ -35,7 +35,9 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
+from business_logger import BusinessLogger
 from logger import getJSONLogger
+
 logger = getJSONLogger('recommendationservice-server')
 
 def initStackdriverProfiling():
@@ -64,23 +66,43 @@ def initStackdriverProfiling():
   return
 
 class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
+    def __init__(self):
+        self.business_logger = BusinessLogger(logger)
+        self.max_responses = 5
+
     def ListRecommendations(self, request, context):
-        max_responses = 5
-        # fetch list of products from product catalog stub
-        cat_response = product_catalog_stub.ListProducts(demo_pb2.Empty())
-        product_ids = [x.id for x in cat_response.products]
-        filtered_products = list(set(product_ids)-set(request.product_ids))
-        num_products = len(filtered_products)
-        num_return = min(max_responses, num_products)
-        # sample list of indicies to return
-        indices = random.sample(range(num_products), num_return)
-        # fetch product ids from indices
-        prod_list = [filtered_products[i] for i in indices]
-        logger.info("[Recv ListRecommendations] product_ids={}".format(prod_list))
-        # build and return response
-        response = demo_pb2.ListRecommendationsResponse()
-        response.product_ids.extend(prod_list)
-        return response
+        try:
+            # fetch list of products from product catalog stub
+            cat_response = product_catalog_stub.ListProducts(demo_pb2.Empty())
+            product_ids = [x.id for x in cat_response.products]
+            filtered_products = list(set(product_ids)-set(request.product_ids))
+            num_products = len(filtered_products)
+            num_return = min(self.max_responses, num_products)
+
+            # sample list of indices to return
+            indices = random.sample(range(num_products), num_return)
+            # fetch product ids from indices
+            prod_list = [filtered_products[i] for i in indices]
+            # logger.info("[Recv ListRecommendations] product_ids={}".format(prod_list))
+            # Log asynchronously via queue
+            self.business_logger.log_recommendation_request(
+                input_products=request.product_ids,
+                recommended_products=prod_list
+            )
+
+            # build and return response
+            response = demo_pb2.ListRecommendationsResponse()
+            response.product_ids.extend(prod_list)
+            return response
+            
+        except Exception as e:
+            self.business_logger.log_recommendation_error(
+                str(e),
+                input_products=request.product_ids
+            )
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Error generating recommendations: {str(e)}")
+            return demo_pb2.ListRecommendationsResponse()
 
     def Check(self, request, context):
         return health_pb2.HealthCheckResponse(
