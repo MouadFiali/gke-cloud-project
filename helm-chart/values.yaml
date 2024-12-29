@@ -65,7 +65,7 @@ adService:
   create: true
   name: adservice
   image:
-    tag: "v0.10.2"
+    tag: "v0.10.3"
   resources:
     requests:
       cpu: 200m
