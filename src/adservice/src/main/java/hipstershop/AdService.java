@@ -41,6 +41,7 @@ import org.apache.logging.log4j.Logger;
 public final class AdService {
 
   private static final Logger logger = LogManager.getLogger(AdService.class);
+  private static final BusinessLogger businessLogger = new BusinessLogger();
 
   @SuppressWarnings("FieldCanBeLocal")
   private static int MAX_ADS_TO_SERVE = 2;
@@ -95,24 +96,35 @@ public final class AdService {
       AdService service = AdService.getInstance();
       try {
         List<Ad> allAds = new ArrayList<>();
-        logger.info("received ad request (context_words=" + req.getContextKeysList() + ")");
+
         if (req.getContextKeysCount() > 0) {
           for (int i = 0; i < req.getContextKeysCount(); i++) {
-            Collection<Ad> ads = service.getAdsByCategory(req.getContextKeys(i));
+            String currentContextKey = req.getContextKeys(i);
+            Collection<Ad> ads = service.getAdsByCategory(currentContextKey);
             allAds.addAll(ads);
+            // Log each successful ad serve by category
+            businessLogger.logAdServed(currentContextKey);
           }
         } else {
           allAds = service.getRandomAds();
+          businessLogger.logAdServed("random");
         }
         if (allAds.isEmpty()) {
           // Serve random ads.
           allAds = service.getRandomAds();
+          businessLogger.logAdServed("random_fallback");
         }
+
+        businessLogger.logAdRequest(req.getContextKeysList(), allAds.size());
+
         AdResponse reply = AdResponse.newBuilder().addAllAds(allAds).build();
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
       } catch (StatusRuntimeException e) {
-        logger.log(Level.WARN, "GetAds Failed with status {}", e.getStatus());
+        businessLogger.logError("RPC_ERROR", e.getStatus().getDescription());
+        responseObserver.onError(e);
+      } catch (Exception e) {
+        businessLogger.logError("INTERNAL_ERROR", e.getMessage());
         responseObserver.onError(e);
       }
     }
