@@ -78,7 +78,7 @@ cartService:
   create: true
   name: cartservice
   image:
-    tag: "v0.10.2"
+    tag: "v0.10.3"
   resources:
     requests:
       cpu: 200m
@@ -91,7 +91,7 @@ checkoutService:
   create: true
   name: checkoutservice
   image:
-    tag: "v0.10.2"
+    tag: "v0.10.3"
   resources:
     requests:
       cpu: 100m
@@ -104,7 +104,7 @@ currencyService:
   create: true
   name: currencyservice
   image:
-    tag: "v0.10.2"
+    tag: "v0.10.3"
   resources:
     requests:
       cpu: 100m
@@ -117,7 +117,7 @@ emailService:
   create: true
   name: emailservice
   image:
-    tag: "v0.10.2"
+    tag: "v0.10.3"
   resources:
     requests:
       cpu: 100m
@@ -130,7 +130,7 @@ frontend:
   create: true
   name: frontend
   image:
-    tag: "v0.10.2"
+    tag: "v0.10.3"
   externalService: true
   cymbalBranding: false
   # One of: local, gcp, aws, azure, onprem, alibaba. When not set, defaults to "local" unless running in GKE, otherwise auto-sets to gcp.
@@ -169,7 +169,7 @@ paymentService:
   create: true
   name: paymentservice
   image:
-    tag: "v0.10.2"
+    tag: "v0.10.3"
   resources:
     requests:
       cpu: 100m
@@ -182,7 +182,7 @@ productCatalogService:
   create: true
   name: productcatalogservice
   image:
-    tag: "v0.10.2"
+    tag: "v0.10.3"
   # Specifies an extra latency to any request on productcatalogservice, by default no extra latency.
   extraLatency: ""
   resources:
@@ -197,7 +197,7 @@ recommendationService:
   create: true
   name: recommendationservice
   image:
-    tag: "v0.10.2"
+    tag: "v0.10.3"
   resources:
     requests:
       cpu: 100m
@@ -210,7 +210,7 @@ shippingService:
   create: true
   name: shippingservice
   image:
-    tag: "v0.10.2"
+    tag: "v0.10.3"
   resources:
     requests:
       cpu: 100m
