@@ -89,34 +89,15 @@ stages:
     - IMAGE_PREFIX=$(echo $IMAGE_PREFIX | tr '[:upper:]' '[:lower:]')
     - docker build -t $IMAGE_PREFIX/$COMPONENT_IMAGE:$VERSION ./src/$COMPONENT_PATH
     - docker push $IMAGE_PREFIX/$COMPONENT_IMAGE:$VERSION
+    - cp values.yaml values-${COMPONENT_IMAGE}.yaml
   artifacts:
     paths:
-      - values.yaml
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "master"'
-      changes:
-        - src/$COMPONENT_PATH/**/*
-
-.deploy_template: &deploy_template
-  stage: deploy
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache git
-  script:
-    - git config --global user.email "bot@example.com"
-    - git config --global user.name "CI Bot"
-    - git pull origin ${CI_COMMIT_REF_NAME}
-    - cp values.yaml helm-chart/values.yaml
-    - git add helm-chart/values.yaml
-    - git commit -m "CI#patch - Update ${COMPONENT} image version in values.yaml"
-    - git push https://gitlab-ci-token:${GITLAB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git HEAD:${CI_COMMIT_REF_NAME}
-    - rm values.yaml # Clean up
+      - values-${COMPONENT_IMAGE}.yaml
   rules:
     - if: '$CI_COMMIT_BRANCH == "master"'
       changes:
         - src/$COMPONENT_PATH/**/*
     
-
 # Component-specific jobs
 
 # Ad Service
@@ -136,15 +117,6 @@ build-adservice:
   dependencies:
     - parse-version-adservice
 
-deploy-adservice:
-  extends: .deploy_template
-  variables:
-    COMPONENT: "adService"
-    COMPONENT_IMAGE: "adservice"
-    COMPONENT_PATH: "adservice"
-  dependencies:
-    - build-adservice
-
 # Cart Service
 parse-version-cartservice:
   extends: .parse_version_template
@@ -161,15 +133,6 @@ build-cartservice:
     COMPONENT_PATH: "cartservice/src"
   dependencies:
     - parse-version-cartservice
-
-deploy-cartservice:
-  extends: .deploy_template
-  variables:
-    COMPONENT: "cartService"
-    COMPONENT_IMAGE: "cartservice"
-    COMPONENT_PATH: "cartservice/src"
-  dependencies:
-    - build-cartservice
 
 # Checkout Service
 parse-version-checkoutservice:
@@ -188,15 +151,6 @@ build-checkoutservice:
   dependencies:
     - parse-version-checkoutservice
 
-deploy-checkoutservice:
-  extends: .deploy_template
-  variables:
-    COMPONENT: "checkoutService"
-    COMPONENT_IMAGE: "checkoutservice"
-    COMPONENT_PATH: "checkoutservice"
-  dependencies:
-    - build-checkoutservice
-
 # Currency Service
 parse-version-currencyservice:
   extends: .parse_version_template
@@ -213,15 +167,6 @@ build-currencyservice:
     COMPONENT_PATH: "currencyservice"
   dependencies:
     - parse-version-currencyservice
-
-deploy-currencyservice:
-  extends: .deploy_template
-  variables:
-    COMPONENT: "currencyService"
-    COMPONENT_IMAGE: "currencyservice"
-    COMPONENT_PATH: "currencyservice"
-  dependencies:
-    - build-currencyservice
 
 # Email Service
 parse-version-emailservice:
@@ -240,15 +185,6 @@ build-emailservice:
   dependencies:
     - parse-version-emailservice
 
-deploy-emailservice:
-  extends: .deploy_template
-  variables:
-    COMPONENT: "emailService"
-    COMPONENT_IMAGE: "emailservice"
-    COMPONENT_PATH: "emailservice"
-  dependencies:
-    - build-emailservice
-
 # Frontend
 parse-version-frontend:
   extends: .parse_version_template
@@ -265,15 +201,6 @@ build-frontend:
     COMPONENT_PATH: "frontend"
   dependencies:
     - parse-version-frontend
-
-deploy-frontend:
-  extends: .deploy_template
-  variables:
-    COMPONENT: "frontend"
-    COMPONENT_IMAGE: "frontend"
-    COMPONENT_PATH: "frontend"
-  dependencies:
-    - build-frontend
 
 # Payment Service
 parse-version-paymentservice:
@@ -292,15 +219,6 @@ build-paymentservice:
   dependencies:
     - parse-version-paymentservice
 
-deploy-paymentservice:
-  extends: .deploy_template
-  variables:
-    COMPONENT: "paymentService"
-    COMPONENT_IMAGE: "paymentservice"
-    COMPONENT_PATH: "paymentservice"
-  dependencies:
-    - build-paymentservice
-
 # Product Catalog Service
 parse-version-productcatalogservice:
   extends: .parse_version_template
@@ -317,15 +235,6 @@ build-productcatalogservice:
     COMPONENT_PATH: "productcatalogservice"
   dependencies:
     - parse-version-productcatalogservice
-
-deploy-productcatalogservice:
-  extends: .deploy_template
-  variables:
-    COMPONENT: "productCatalogService"
-    COMPONENT_IMAGE: "productcatalogservice"
-    COMPONENT_PATH: "productcatalogservice"
-  dependencies:
-    - build-productcatalogservice
 
 # Recommendation Service
 parse-version-recommendationservice:
@@ -344,15 +253,6 @@ build-recommendationservice:
   dependencies:
     - parse-version-recommendationservice
 
-deploy-recommendationservice:
-  extends: .deploy_template
-  variables:
-    COMPONENT: "recommendationService"
-    COMPONENT_IMAGE: "recommendationservice"
-    COMPONENT_PATH: "recommendationservice"
-  dependencies:
-    - build-recommendationservice
-
 # Shipping Service
 parse-version-shippingservice:
   extends: .parse_version_template
@@ -369,15 +269,6 @@ build-shippingservice:
     COMPONENT_PATH: "shippingservice"
   dependencies:
     - parse-version-shippingservice
-
-deploy-shippingservice:
-  extends: .deploy_template
-  variables:
-    COMPONENT: "shippingService"
-    COMPONENT_IMAGE: "shippingservice"
-    COMPONENT_PATH: "shippingservice"
-  dependencies:
-    - build-shippingservice
 
 # Shopping Assistant Service
 parse-version-shoppingassistantservice:
@@ -396,11 +287,81 @@ build-shoppingassistantservice:
   dependencies:
     - parse-version-shoppingassistantservice
 
-deploy-shoppingassistantservice:
-  extends: .deploy_template
-  variables:
-    COMPONENT: "shoppingAssistantService"
-    COMPONENT_IMAGE: "shoppingassistantservice"
-    COMPONENT_PATH: "shoppingassistantservice"
+# Unified deploy job
+
+deploy:
+  stage: deploy
+  image: python:3.9
+  before_script:
+    - pip install ruamel.yaml
+    - apt-get update && apt-get install -y git
+  script:
+    - git config --global user.email "bot@example.com"
+    - git config --global user.name "CI Bot"
+    - git pull origin $CI_COMMIT_REF_NAME
+    - |
+      python -c "
+      from ruamel.yaml import YAML
+      import glob
+      import os
+
+      yaml = YAML()
+      yaml.preserve_quotes = True
+
+      # Load the original values file
+      with open('helm-chart/values.yaml', 'r') as f:
+          final_data = yaml.load(f)
+
+      # Store original versions
+      original_versions = {}
+      for component, data in final_data.items():
+          if 'image' in data and 'tag' in data['image']:
+              original_versions[component] = data['image']['tag']
+
+      # Find all values.yaml files from build jobs
+      values_files = glob.glob('values-*.yaml')
+      print(f'Found values files: {values_files}')
+
+      # Track which components were updated
+      updated_components = {}
+
+      # First pass: collect all updates
+      for values_file in values_files:
+          with open(values_file, 'r') as f:
+              component_data = yaml.load(f)
+              for component, data in component_data.items():
+                  if 'image' in data and 'tag' in data['image']:
+                      new_tag = data['image']['tag']
+                      if component not in updated_components or new_tag > updated_components[component]:
+                          updated_components[component] = new_tag
+
+      # Second pass: apply only the final updates
+      for component, new_tag in updated_components.items():
+          if original_versions.get(component) != new_tag:
+              final_data[component]['image']['tag'] = new_tag
+              print(f'Updated {component} from {original_versions.get(component)} to version {new_tag}')
+
+      # Write back the merged changes
+      with open('helm-chart/values.yaml', 'w') as f:
+          yaml.dump(final_data, f)
+      "
+
+    - git add helm-chart/values.yaml
+    - git commit -m "CI#patch - Update image version(s) in values.yaml"
+    - git push https://gitlab-ci-token:${GITLAB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git HEAD:${CI_COMMIT_REF_NAME}
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+      changes:
+        - src/**/*
   dependencies:
+    - build-adservice
+    - build-cartservice
+    - build-checkoutservice
+    - build-currencyservice
+    - build-emailservice
+    - build-frontend
+    - build-paymentservice
+    - build-productcatalogservice
+    - build-recommendationservice
+    - build-shippingservice
     - build-shoppingassistantservice
