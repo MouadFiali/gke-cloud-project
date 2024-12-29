@@ -65,7 +65,7 @@ adService:
   create: true
   name: adservice
   image:
-    tag: "v0.10.3"
+    tag: "v0.10.2"
   resources:
     requests:
       cpu: 200m
@@ -78,7 +78,7 @@ cartService:
   create: true
   name: cartservice
   image:
-    tag: "v0.10.3"
+    tag: "v0.10.2"
   resources:
     requests:
       cpu: 200m
