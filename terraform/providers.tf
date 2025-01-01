@@ -26,7 +26,11 @@ terraform {
 }
 
 provider "kubernetes" {
-  config_path = "~/.kube/config"
+  host  = "https://${var.enable_autopilot ? google_container_cluster.gke_autopilot[0].endpoint : google_container_cluster.gke_standard[0].endpoint}"
+  token = data.google_client_config.current.access_token
+  cluster_ca_certificate = base64decode(
+    var.enable_autopilot ? google_container_cluster.gke_autopilot[0].master_auth[0].cluster_ca_certificate : google_container_cluster.gke_standard[0].master_auth[0].cluster_ca_certificate
+  )
 }
 
 provider "google" {

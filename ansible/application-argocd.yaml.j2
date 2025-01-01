@@ -10,12 +10,15 @@ spec:
     namespace: {{ app_namespace }}
     server: https://kubernetes.default.svc
   source:
-    repoURL: https://gitlab.com/Hamdane10/gke-cloud-project.git
-    targetRevision: HEAD
-    path: helm-chart
+    repoURL: https://gitlab.com/api/v4/projects/64754633/packages/helm/stable
+    targetRevision: '*'
+    chart: onlineboutique-chart
     helm:
       skipCrds: false
       valuesObject:
+        global:
+          imagePullSecrets:
+            - name: gitlab-registry-secret
         networkPolicies:
           create: true
         sidecars:

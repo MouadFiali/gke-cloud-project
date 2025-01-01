@@ -19,7 +19,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Run the deploy-argocd playbook
-ansible-playbook deploy-argocd.yaml --extra-vars "app_namespace=$APP_NAMESPACE tracing=$TRACING logging=$LOGGING"
+ansible-playbook deploy-argocd.yaml --extra-vars "app_namespace=$NAMESPACE tracing=$TRACING logging=$LOGGING"
 
 # Check if the first playbook ran successfully
 if [ $? -ne 0 ]; then

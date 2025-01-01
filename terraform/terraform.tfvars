@@ -24,8 +24,8 @@ enable_autopilot = false
 
 memorystore = false
 
-namespace = "test-namespace"
+namespace = "app"
 
 tracing = false
 
-logging = true
+logging = false

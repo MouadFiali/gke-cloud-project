@@ -164,6 +164,16 @@ resource "null_resource" "deploy_services_using_ansible" {
   }
 }
 
+data "kubernetes_service" "ingress_gateway" {
+  depends_on = [null_resource.deploy_services_using_ansible]
+  
+  metadata {
+    name      = "asm-ingressgateway"
+    namespace = "asm-ingress"
+  }
+}
+
+
 resource "google_compute_project_metadata" "default" {
   metadata = {
     ssh-keys = "${var.gcpUser}:${tls_private_key.ssh.public_key_openssh}"
