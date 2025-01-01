@@ -5,12 +5,13 @@ grafana:
       serve_from_sub_path: true
     smtp:
       enabled: true
-      user: ${smtp-user}
-      password: ${smtp-password}
+      host: host-value
+      user: user-value
+      password: password-value
       from_address: alerting@grafana.com
       from_name: Grafana
       skip_verify: true
-  envFromSecret: grafana-smtp-secret
+
   nameSpaceOverride: ""
   sidecar:
     dashboards:
@@ -151,10 +152,83 @@ additionalPrometheusRulesMap:
       - name: locust-alert-group
         rules:
           - alert: LocustFailRatio
-            expr: locust_requests_fail_ratio{instance="online-boutique-load-generator:9646"} > 0.01
+            expr: locust_requests_fail_ratio{instance="online-boutique-load-generator:9646"} <= 100
             for: 0s
             labels:
               severity: warning
             annotations:
               summary: "Locust alert: The fail ratio has exceeded 1% of the total requests."
               description: "Locust alert: The fail ratio has exceeded 1% of the total requests."
+
+defaultRules:
+  create: true
+  rules:
+    alertmanager: false
+    etcd: false
+    configReloaders: false
+    general: false
+    k8sContainerCpuUsageSecondsTotal: false
+    k8sContainerMemoryCache: false
+    k8sContainerMemoryRss: false
+    k8sContainerMemorySwap: false
+    k8sContainerResource: false
+    k8sContainerMemoryWorkingSetBytes: false
+    k8sPodOwner: false
+    kubeApiserverAvailability: false
+    kubeApiserverBurnrate: false
+    kubeApiserverHistogram: false
+    kubeApiserverSlos: false
+    kubeControllerManager: false
+    kubelet: false
+    kubeProxy: false
+    kubePrometheusGeneral: false
+    kubePrometheusNodeRecording: false
+    kubernetesApps: true
+    kubernetesResources: true
+    kubernetesStorage: true
+    kubernetesSystem: true
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeStateMetrics: false
+    network: false
+    node: false
+    nodeExporterAlerting: true
+    nodeExporterRecording: true
+    prometheus: false
+    prometheusOperator: false
+    windows: false
+      
+alertmanager:
+  config:
+    global:
+      resolve_timeout: 5m
+      smtp_from: 'alerting@grafana.com'
+      smtp_smarthost: 'sandbox.smtp.mailtrap.io:587'
+      smtp_hello: 'localhost'
+      smtp_auth_username: user-value
+      smtp_auth_password: password-value
+      smtp_auth_identity: user-value
+      smtp_require_tls: true
+
+    route:
+      group_by: ['namespace']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: 'email-notifications'
+      routes:
+      - receiver: 'email-notifications'
+        matchers:
+        - alertname =~ ".*"
+    receivers:
+    - name: 'email-notifications'
+      email_configs:
+      - to: 'recipient@example.com'
+        send_resolved: true
+        smarthost: host-value
+        auth_username: user-value
+        auth_password: password-value
+        auth_identity: user-value
+        require_tls: true
+
+    

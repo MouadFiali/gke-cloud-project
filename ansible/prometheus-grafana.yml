@@ -70,13 +70,30 @@
         -n monitoring
       when: grafana_smtp_secret.rc != 0
 
-    # This task installs the Prometheus stack using Helm with custom values
+    # Modify the custom-values/prom-grafana-values.yaml to add the Host value in a temporary file
+    - name: Create temporary custom-values file with actual host value
+      shell: |
+      cp custom-values/prom-grafana-values.yaml /tmp/prom-grafana-values-temp.yaml
+      sed -i 's/host: host-value/host: {{ grafana-smtp-user }}/' /tmp/prom-grafana-values-temp.yaml
+      sed -i 's/user: user-value/user: {{ grafana-smtp-user }}/' /tmp/prom-grafana-values-temp.yaml
+      sed -i 's/password: password-value/password: {{ grafana-smtp-password }}/' /tmp/prom-grafana-values-temp.yaml
+      sed -i 's/smtp_smarthost: host-value/smtp_smarthost: {{ grafana-smtp-host }}/' /tmp/prom-grafana-values-temp.yaml
+      sed -i 's/smtp_auth_password: password-value/smtp_auth_password: {{ grafana-smtp-password }}/' /tmp/prom-grafana-values-temp.yaml
+      sed -i 's/smtp_auth_username: user-value/smtp_auth_username: {{ grafana-smtp-user }}/' /tmp/prom-grafana-values-temp.yaml
+      sed -i 's/smtp_auth_identity : user-value/smtp_auth_identity : {{ grafana-smtp-user }}/' /tmp/prom-grafana-values-temp.yaml
+
+    # This task installs the Prometheus stack using Helm with custom values from the temporary file
     - name: Install Prometheus stack using Helm
       shell: >
-        helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack 
-        --namespace monitoring
-        --values custom-values/prom-grafana-values.yaml
-        --set grafana.grafana.ini.smtp.host={{ grafana_smtp_host }}
+      helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack 
+      --namespace monitoring
+      --values /tmp/prom-grafana-values-temp.yaml
+
+    # Remove the temporary custom-values file
+    - name: Remove temporary custom-values file
+      file:
+      path: /tmp/prom-grafana-values-temp.yaml
+      state: absent
 
     # Label the ConfigMaps for Grafana to pick the dashboards
     - name: Add labels and annotations to ConfigMaps
