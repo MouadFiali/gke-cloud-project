@@ -3,11 +3,12 @@
 NAMESPACE="${1:-default}"
 TRACING="${2:-false}"
 LOGGING="${3:-false}"
+GRAFANA_SMTP_HOST="${4:-}"
+GRAFANA_SMTP_USER="${5:-}"
+GRAFANA_SMTP_PASSWORD="${6:-}"
 
 # Navigate to the ansible directory
 cd ../ansible
-
-
 
 # Run install-istio-flagger playbook
 ansible-playbook install-istio-flagger.yml
@@ -28,7 +29,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Run the prometheus-grafana playbook
-ansible-playbook prometheus-grafana.yml --extra-vars "tracing=$TRACING logging=$LOGGING"
+ansible-playbook prometheus-grafana.yml --extra-vars "tracing=$TRACING logging=$LOGGING grafana_smtp_user=$GRAFANA_SMTP_USER grafana_smtp_password=$GRAFANA_SMTP_PASSWORD grafana_smtp_host=$GRAFANA_SMTP_HOST"
 
 # Check if the second playbook ran successfully
 if [ $? -ne 0 ]; then

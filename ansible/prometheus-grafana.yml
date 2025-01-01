@@ -5,6 +5,9 @@
   vars:
     tracing: "{{ tracing | default('false') }}"
     logging: "{{ logging | default('false') }}"
+    grafana_smtp_host: "{{ grafana_smtp_host }}"
+    grafana-smtp-user: "{{ grafana_smtp_user }}"
+    grafana-smtp-password: "{{ grafana_smtp_password }}"
   tasks:
     # This task creates a namespace named 'monitoring' in the Kubernetes cluster.
     - name: Create monitoring namespace
@@ -52,12 +55,28 @@
         kubectl create configmap tempo-tracing-dashboard --from-file=tempo-tracing-dashboard.json=dashboards/tempo_tracing_dashboard.json -n monitoring
         kubectl create configmap redis-exporter-dashboard --from-file=redis-exporter-dashboard.json=dashboards/redis_exporter_dashboard.json -n monitoring  
 
+    # Check if secrets are already created
+    - name: Check if Grafana SMTP secret already exists
+      shell: kubectl get secret grafana-smtp-secret -n monitoring
+      register: grafana_smtp_secret
+      ignore_errors: true
+
+    # Create a secret for Grafana SMTP configuration if NOT already created
+    - name: Create Grafana SMTP secret
+      shell: |
+        kubectl create secret generic grafana-smtp-secret 
+        --from-literal=smtp-user={{ grafana-smtp-user }} 
+        --from-literal=smtp-password={{ grafana-smtp-password }} 
+        -n monitoring
+      when: grafana_smtp_secret.rc != 0
+
     # This task installs the Prometheus stack using Helm with custom values
     - name: Install Prometheus stack using Helm
       shell: >
         helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack 
-        --namespace monitoring 
+        --namespace monitoring
         --values custom-values/prom-grafana-values.yaml
+        --set grafana.grafana.ini.smtp.host={{ grafana_smtp_host }}
 
     # Label the ConfigMaps for Grafana to pick the dashboards
     - name: Add labels and annotations to ConfigMaps

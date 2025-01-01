@@ -3,6 +3,14 @@ grafana:
     server:
       root_url: "http://%(domain)s/infra/monitoring/grafana"
       serve_from_sub_path: true
+    smtp:
+      enabled: true
+      user: ${smtp-user}
+      password: ${smtp-password}
+      from_address: alerting@grafana.com
+      from_name: Grafana
+      skip_verify: true
+  envFromSecret: grafana-smtp-secret
   nameSpaceOverride: ""
   sidecar:
     dashboards:
@@ -135,3 +143,18 @@ prometheus:
         static_configs:
         - targets:
           - redis-cart.app:9121
+
+additionalPrometheusRulesMap:
+  locust-alerts:
+    editable: true
+    groups:
+      - name: locust-alert-group
+        rules:
+          - alert: LocustFailRatio
+            expr: locust_requests_fail_ratio{instance="online-boutique-load-generator:9646"} > 0.01
+            for: 0s
+            labels:
+              severity: warning
+            annotations:
+              summary: "Locust alert: The fail ratio has exceeded 1% of the total requests."
+              description: "Locust alert: The fail ratio has exceeded 1% of the total requests."

@@ -29,3 +29,9 @@ namespace = "app"
 tracing = false
 
 logging = false
+
+grafana_smtp_host = "sandbox.smtp.mailtrap.io:2525"
+
+grafana_smtp_user = "3b2d2dac48881e"
+
+grafana_smtp_password = "ff7cbfcfca5d30"

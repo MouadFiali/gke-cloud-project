@@ -82,3 +82,18 @@ variable "memorystore" {
   type        = bool
   description = "If true, Online Boutique's in-cluster Redis cache will be replaced with a Google Cloud Memorystore Redis cache"
 }
+
+variable "grafana_smtp_host" {
+  type        = string
+  description = "SMTP host for Grafana"
+}
+
+variable "grafana_smtp_user" {
+  type        = string
+  description = "SMTP user for Grafana"
+}
+
+variable "grafana_smtp_password" {
+  type        = string
+  description = "SMTP password for Grafana"
+}
