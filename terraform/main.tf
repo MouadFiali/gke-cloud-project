@@ -160,7 +160,7 @@ resource "null_resource" "deploy_services_using_ansible" {
   ]
 
   provisioner "local-exec" {
-    command = "cd ../scripts && ./run_ansible_playbooks.sh ${var.namespace} ${var.tracing} ${var.logging}"
+    command = "cd ../scripts && ./run_ansible_playbooks.sh ${var.namespace} ${var.tracing} ${var.logging} ${var.grafana_smtp_host} ${var.grafana_smtp_user} ${var.grafana_smtp_password}"
   }
 }
 
