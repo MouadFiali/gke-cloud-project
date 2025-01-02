@@ -195,7 +195,7 @@ func initTracing(log logrus.FieldLogger, ctx context.Context, svc *frontendServe
 
 func initProfiling(log logrus.FieldLogger, service, version string) {
 	// TODO(ahmetb) this method is duplicated in other microservices using Go
-	// since they are not sharing packages.
+	// since they are not sharing packages
 	for i := 1; i <= 3; i++ {
 		log = log.WithField("retry", i)
 		if err := profiler.Start(profiler.Config{
