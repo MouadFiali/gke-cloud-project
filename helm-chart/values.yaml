@@ -18,7 +18,7 @@
 
 global:
   imagePullSecrets:
-    - name: gitlab-registry-secret
+  - name: gitlab-registry-secret
 
 images:
   repository: registry.gitlab.com/hamdane10/gke-cloud-project
@@ -95,7 +95,7 @@ checkoutService:
   create: true
   name: checkoutservice
   image:
-    tag: "v0.10.3"
+    tag: "v0.11.0"
   resources:
     requests:
       cpu: 100m
