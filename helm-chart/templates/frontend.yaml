@@ -265,25 +265,38 @@ spec:
         ports:
         - "8080"
 {{- end }}
-{{- if .Values.frontend.virtualService.create }}
+{{- if .Values.frontend.canary.create }}
 ---
-apiVersion: networking.istio.io/v1alpha3
-kind: VirtualService
+apiVersion: flagger.app/v1beta1
+kind: Canary
 metadata:
   name: {{ .Values.frontend.name }}
   namespace: {{ .Release.Namespace }}
 spec:
-  {{- with .Values.frontend.virtualService.hosts }}
-  hosts:
-  {{- toYaml . | nindent 2 }}
-  {{- end }}
-  gateways:
-  - {{ .Values.frontend.virtualService.gateway.namespace }}/{{ .Values.frontend.virtualService.gateway.name }}
-  http:
-  - route:
-    - destination:
-        host: {{ .Values.frontend.name }}
-        port:
-          number: 80
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.frontend.name }}
+  progressDeadlineSeconds: {{ .Values.frontend.canary.progressDeadlineSeconds | default 60 }}
+  service:
+    port: 80
+    targetPort: 8080
+    portName: http
+    gateways:
+      - {{ .Values.frontend.canary.gateway.namespace | default "asm-ingress" }}/{{ .Values.frontend.canary.gateway.name | default "asm-ingressgateway" }}
+    hosts:
+      - {{ .Values.frontend.canary.host | default "*" }}
+  analysis:
+    interval: {{ .Values.frontend.canary.analysis.interval | default "30s" }}
+    threshold: {{ .Values.frontend.canary.analysis.threshold | default 10 }}
+    maxWeight: {{ .Values.frontend.canary.analysis.maxWeight | default 25 }}
+    stepWeight: {{ .Values.frontend.canary.analysis.stepWeight | default 2 }}
+    metrics:
+    - name: request-success-rate
+      threshold: {{ .Values.frontend.canary.analysis.successRate | default 99 }}
+      interval: {{ .Values.frontend.canary.analysis.metricInterval | default "30s" }}
+    - name: request-duration
+      threshold: {{ .Values.frontend.canary.analysis.duration | default 500 }}
+      interval: {{ .Values.frontend.canary.analysis.metricInterval | default "30s" }}
 {{- end }}
 {{- end }}

@@ -35,7 +35,7 @@ spec:
           tracing: {{ tracing | string | lower }}
         frontend:
           externalService: false
-          virtualService:
+          canary:
             create: true
             gateway:
               name: asm-ingressgateway
