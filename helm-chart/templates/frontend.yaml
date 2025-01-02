@@ -285,7 +285,7 @@ spec:
     gateways:
       - {{ .Values.frontend.canary.gateway.namespace }}/{{ .Values.frontend.canary.gateway.name }}
     hosts:
-      - {{ .Values.frontend.canary.hosts }}
+    {{- toYaml .Values.frontend.canary.hosts | nindent 6 }}
   analysis:
     interval: {{ .Values.frontend.canary.analysis.interval }}
     threshold: {{ .Values.frontend.canary.analysis.threshold }}
