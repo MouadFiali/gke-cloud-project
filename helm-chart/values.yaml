@@ -142,6 +142,15 @@ frontend:
   singleSharedSession: false
   canary:
     create: false
+    progressDeadlineSeconds: 60
+    analysis:
+      interval: 30s
+      threshold: 10
+      maxWeight: 25
+      stepWeight: 2
+      successRate: 99
+      metricInterval: 30s
+      duration: 500
     hosts:
     - "*"
     gateway:

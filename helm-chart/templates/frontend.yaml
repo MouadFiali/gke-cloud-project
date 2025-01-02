@@ -277,26 +277,26 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: {{ .Values.frontend.name }}
-  progressDeadlineSeconds: {{ .Values.frontend.canary.progressDeadlineSeconds | default 60 }}
+  progressDeadlineSeconds: {{ .Values.frontend.canary.progressDeadlineSeconds }}
   service:
     port: 80
     targetPort: 8080
     portName: http
     gateways:
-      - {{ .Values.frontend.canary.gateway.namespace | default "asm-ingress" }}/{{ .Values.frontend.canary.gateway.name | default "asm-ingressgateway" }}
+      - {{ .Values.frontend.canary.gateway.namespace }}/{{ .Values.frontend.canary.gateway.name }}
     hosts:
-      - {{ .Values.frontend.canary.host | default "*" }}
+      - {{ .Values.frontend.canary.hosts }}
   analysis:
-    interval: {{ .Values.frontend.canary.analysis.interval | default "30s" }}
-    threshold: {{ .Values.frontend.canary.analysis.threshold | default 10 }}
-    maxWeight: {{ .Values.frontend.canary.analysis.maxWeight | default 25 }}
-    stepWeight: {{ .Values.frontend.canary.analysis.stepWeight | default 2 }}
+    interval: {{ .Values.frontend.canary.analysis.interval }}
+    threshold: {{ .Values.frontend.canary.analysis.threshold }}
+    maxWeight: {{ .Values.frontend.canary.analysis.maxWeight }}
+    stepWeight: {{ .Values.frontend.canary.analysis.stepWeight }}
     metrics:
     - name: request-success-rate
-      threshold: {{ .Values.frontend.canary.analysis.successRate | default 99 }}
-      interval: {{ .Values.frontend.canary.analysis.metricInterval | default "30s" }}
+      threshold: {{ .Values.frontend.canary.analysis.successRate }}
+      interval: {{ .Values.frontend.canary.analysis.metricInterval }}
     - name: request-duration
-      threshold: {{ .Values.frontend.canary.analysis.duration | default 500 }}
-      interval: {{ .Values.frontend.canary.analysis.metricInterval | default "30s" }}
+      threshold: {{ .Values.frontend.canary.analysis.duration }}
+      interval: {{ .Values.frontend.canary.analysis.metricInterval }}
 {{- end }}
 {{- end }}
