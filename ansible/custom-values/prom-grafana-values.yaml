@@ -1,4 +1,5 @@
 grafana:
+  assertNoLeakedSecrets: false
   grafana.ini:
     server:
       root_url: "http://%(domain)s/infra/monitoring/grafana"
@@ -150,7 +151,7 @@ additionalPrometheusRulesMap:
     editable: true
     groups:
       - name: locust-alert-group
-        rules:
+        rules:     
           - alert: LocustFailRatio
             expr: locust_requests_fail_ratio{instance="online-boutique-load-generator:9646"} <= 100
             for: 0s
@@ -159,6 +160,16 @@ additionalPrometheusRulesMap:
             annotations:
               summary: "Locust alert: The fail ratio has exceeded 1% of the total requests."
               description: "Locust alert: The fail ratio has exceeded 1% of the total requests."
+      - name: Canary-alert-group
+        rules:
+          - alert: canary_rollback
+            expr: flagger_canary_status > 1
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Canary failed"
+              description: "Workload {{ $labels.name }} namespace {{ $labels.namespace }}"
 
 defaultRules:
   create: true
@@ -203,7 +214,7 @@ alertmanager:
     global:
       resolve_timeout: 5m
       smtp_from: 'alerting@grafana.com'
-      smtp_smarthost: 'sandbox.smtp.mailtrap.io:587'
+      smtp_smarthost: host-value
       smtp_hello: 'localhost'
       smtp_auth_username: user-value
       smtp_auth_password: password-value
@@ -225,10 +236,5 @@ alertmanager:
       email_configs:
       - to: 'recipient@example.com'
         send_resolved: true
-        smarthost: host-value
-        auth_username: user-value
-        auth_password: password-value
-        auth_identity: user-value
-        require_tls: true
 
     
