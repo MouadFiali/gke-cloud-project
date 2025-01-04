@@ -95,7 +95,7 @@ checkoutService:
   create: true
   name: checkoutservice
   image:
-    tag: "v0.11.0"
+    tag: "v0.10.2"
   resources:
     requests:
       cpu: 50m
