@@ -21,7 +21,7 @@ global:
   - name: gitlab-registry-secret
 
 images:
-  repository: registry.gitlab.com/hamdane10/gke-cloud-project
+  repository: us-central1-docker.pkg.dev/google-samples/microservices-demo
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
@@ -69,7 +69,7 @@ adService:
   create: true
   name: adservice
   image:
-    tag: "v0.10.3"
+    tag: "v0.10.2"
   resources:
     requests:
       cpu: 50m
@@ -82,7 +82,7 @@ cartService:
   create: true
   name: cartservice
   image:
-    tag: "v0.10.3"
+    tag: "v0.10.2"
   resources:
     requests:
       cpu: 200m
@@ -108,7 +108,7 @@ currencyService:
   create: true
   name: currencyservice
   image:
-    tag: "v0.10.3"
+    tag: "v0.10.2"
   resources:
     requests:
       cpu: 100m
@@ -121,7 +121,7 @@ emailService:
   create: true
   name: emailservice
   image:
-    tag: "v0.10.3"
+    tag: "v0.10.2"
   resources:
     requests:
       cpu: 50m
@@ -134,7 +134,7 @@ frontend:
   create: true
   name: frontend
   image:
-    tag: "v0.10.5"
+    tag: "v0.10.2"
   externalService: true
   cymbalBranding: false
   # One of: local, gcp, aws, azure, onprem, alibaba. When not set, defaults to "local" unless running in GKE, otherwise auto-sets to gcp.
@@ -182,7 +182,7 @@ paymentService:
   create: true
   name: paymentservice
   image:
-    tag: "v0.10.3"
+    tag: "v0.10.2"
   resources:
     requests:
       cpu: 50m
@@ -195,7 +195,7 @@ productCatalogService:
   create: true
   name: productcatalogservice
   image:
-    tag: "v0.10.3"
+    tag: "v0.10.2"
   # Specifies an extra latency to any request on productcatalogservice, by default no extra latency.
   extraLatency: ""
   resources:
@@ -210,7 +210,7 @@ recommendationService:
   create: true
   name: recommendationservice
   image:
-    tag: "v0.10.3"
+    tag: "v0.10.2"
   resources:
     requests:
       cpu: 50m
@@ -223,7 +223,7 @@ shippingService:
   create: true
   name: shippingservice
   image:
-    tag: "v0.10.3"
+    tag: "v0.10.2"
   resources:
     requests:
       cpu: 50m
