@@ -72,10 +72,10 @@ adService:
     tag: "v0.10.2"
   resources:
     requests:
-      cpu: 50m
+      cpu: 100m
       memory: 180Mi
     limits:
-      cpu: 100m
+      cpu: 200m
       memory: 300Mi
 
 cartService:
