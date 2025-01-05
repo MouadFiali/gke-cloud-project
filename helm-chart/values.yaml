@@ -72,10 +72,10 @@ adService:
     tag: "v0.10.2"
   resources:
     requests:
-      cpu: 100m
+      cpu: 200m
       memory: 180Mi
     limits:
-      cpu: 200m
+      cpu: 300m
       memory: 300Mi
 
 cartService:
@@ -98,10 +98,10 @@ checkoutService:
     tag: "v0.10.2"
   resources:
     requests:
-      cpu: 50m
+      cpu: 100m
       memory: 64Mi
     limits:
-      cpu: 100m
+      cpu: 200m
       memory: 128Mi
 
 currencyService:
@@ -124,10 +124,10 @@ emailService:
     tag: "v0.10.2"
   resources:
     requests:
-      cpu: 50m
+      cpu: 100m
       memory: 64Mi
     limits:
-      cpu: 100m
+      cpu: 200m
       memory: 128Mi
 
 frontend:
@@ -185,10 +185,10 @@ paymentService:
     tag: "v0.10.2"
   resources:
     requests:
-      cpu: 50m
+      cpu: 100m
       memory: 64Mi
     limits:
-      cpu: 100m
+      cpu: 200m
       memory: 128Mi
 
 productCatalogService:
@@ -213,10 +213,10 @@ recommendationService:
     tag: "v0.10.2"
   resources:
     requests:
-      cpu: 50m
+      cpu: 100m
       memory: 220Mi
     limits:
-      cpu: 100m
+      cpu: 200m
       memory: 450Mi
 
 shippingService:
@@ -226,10 +226,10 @@ shippingService:
     tag: "v0.10.2"
   resources:
     requests:
-      cpu: 50m
+      cpu: 100m
       memory: 64Mi
     limits:
-      cpu: 100m
+      cpu: 200m
       memory: 128Mi
 
 cartDatabase:
