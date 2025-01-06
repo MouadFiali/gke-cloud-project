@@ -1,0 +1,31 @@
+---
+- name: Swarm the load generator
+  hosts: load_generator
+  become: true
+  vars:
+    users: "{{ users | default(10) }}"
+    spawn_rate: "{{ spawn_rate | default(1) }}"
+
+  tasks:
+    - name: Get ingress gateway IP address
+      shell: kubectl get svc asm-ingressgateway -n asm-ingress -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+      register: ingress_ip
+      delegate_to: localhost
+      changed_when: false
+      become: false
+      retries: 10
+      delay: 5
+      until: ingress_ip.stdout != ""
+
+    - name: Swarm the load generator
+      uri:
+        url: "http://localhost:8089/swarm"
+        method: POST
+        headers:
+          Content-Type: "application/x-www-form-urlencoded"
+        body: "user_count={{ users }}&spawn_rate={{ spawn_rate }}&host=http://{{ ingress_ip.stdout }}:80"
+        status_code: 200
+      register: swarm_result
+      retries: 3
+      delay: 5
+      until: swarm_result is success
