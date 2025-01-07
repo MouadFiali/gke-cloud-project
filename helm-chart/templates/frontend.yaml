@@ -212,13 +212,13 @@ spec:
     - podSelector:
         matchLabels:
           app: {{ .Values.loadGenerator.name }}
-    {{- if .Values.frontend.canary.create }}
+    {{- if or .Values.frontend.canary.create .Values.frontend.virtualService.create }}
     - namespaceSelector:
         matchLabels:
-          kubernetes.io/metadata.name: {{ .Values.frontend.canary.gateway.namespace }}
+          kubernetes.io/metadata.name: {{ .Values.frontend.virtualService.gateway.namespace }}
       podSelector:
         matchLabels:
-          {{ .Values.frontend.canary.gateway.labelKey }}: {{ .Values.frontend.canary.gateway.labelValue }}
+          {{ .Values.frontend.virtualService.gateway.labelKey }}: {{ .Values.frontend.virtualService.gateway.labelValue }}
     {{- end }}
     ports:
      - port: 8080
@@ -275,8 +275,8 @@ spec:
         {{- else }}
         - cluster.local/ns/{{ .Release.Namespace }}/sa/default
         {{- end }}
-        {{- if .Values.frontend.canary.create }}
-        - cluster.local/ns/{{ .Values.frontend.canary.gateway.namespace }}/sa/{{ .Values.frontend.canary.gateway.name }}
+        {{- if or .Values.frontend.canary.create .Values.frontend.virtualService.create }}
+        - cluster.local/ns/{{ .Values.frontend.virtualService.gateway.namespace }}/sa/{{ .Values.frontend.virtualService.gateway.name }}
         {{- end }}
     to:
   {{- end }}
