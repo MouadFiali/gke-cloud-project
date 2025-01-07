@@ -104,6 +104,28 @@ spec:
         resources:
           {{- toYaml .Values.productCatalogService.resources | nindent 10 }}
 ---
+{{- if or .Values.global.hpa.enabled .Values.productCatalogService.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.productCatalogService.name }}-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.productCatalogService.name }}
+  minReplicas: {{ .Values.productCatalogService.hpa.minReplicas }}
+  maxReplicas: {{ .Values.productCatalogService.hpa.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.productCatalogService.hpa.targetCPUUtilizationPercentage }}
+---
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:

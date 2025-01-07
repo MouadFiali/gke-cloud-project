@@ -137,6 +137,28 @@ spec:
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
 ---
+{{- if or .Values.global.hpa.enabled .Values.frontend.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.frontend.name }}-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.frontend.name }}{{ if .Values.frontend.canary.create }}-primary{{ end }}
+  minReplicas: {{ .Values.frontend.hpa.minReplicas }}
+  maxReplicas: {{ .Values.frontend.hpa.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.frontend.hpa.targetCPUUtilizationPercentage }}
+---
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -283,9 +305,9 @@ spec:
     targetPort: 8080
     portName: http
     gateways:
-      - {{ .Values.frontend.canary.gateway.namespace }}/{{ .Values.frontend.canary.gateway.name }}
+      - {{ .Values.frontend.virtualService.gateway.namespace }}/{{ .Values.frontend.virtualService.gateway.name }}
     hosts:
-    {{- toYaml .Values.frontend.canary.hosts | nindent 6 }}
+    {{- toYaml .Values.frontend.virtualService.hosts | nindent 6 }}
   analysis:
     interval: {{ .Values.frontend.canary.analysis.interval }}
     threshold: {{ .Values.frontend.canary.analysis.threshold }}
@@ -298,5 +320,27 @@ spec:
     - name: request-duration
       threshold: {{ .Values.frontend.canary.analysis.duration }}
       interval: {{ .Values.frontend.canary.analysis.metricInterval }}
+{{- else }}
+{{- if .Values.frontend.virtualService.create }}
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ .Values.frontend.name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  {{- with .Values.frontend.virtualService.hosts }}
+  hosts:
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+  gateways:
+  - {{ .Values.frontend.virtualService.gateway.namespace }}/{{ .Values.frontend.virtualService.gateway.name }}
+  http:
+  - route:
+    - destination:
+        host: {{ .Values.frontend.name }}
+        port:
+          number: 80
+{{- end }}
 {{- end }}
 {{- end }}

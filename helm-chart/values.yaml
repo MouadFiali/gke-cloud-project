@@ -19,6 +19,8 @@
 global:
   imagePullSecrets:
   - name: gitlab-registry-secret
+  hpa:
+    enabled: false
 
 images:
   repository: us-central1-docker.pkg.dev/google-samples/microservices-demo
@@ -77,6 +79,11 @@ adService:
     limits:
       cpu: 300m
       memory: 300Mi
+  hpa:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 70
 
 cartService:
   create: true
@@ -90,6 +97,11 @@ cartService:
     limits:
       cpu: 300m
       memory: 128Mi
+  hpa:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 55
 
 checkoutService:
   create: true
@@ -103,6 +115,11 @@ checkoutService:
     limits:
       cpu: 200m
       memory: 128Mi
+  hpa:
+    enabled: false
+    minReplicas: 15
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 5
 
 currencyService:
   create: true
@@ -116,6 +133,11 @@ currencyService:
     limits:
       cpu: 200m
       memory: 128Mi
+  hpa:
+    enabled: false
+    minReplicas: 5
+    maxReplicas: 150
+    targetCPUUtilizationPercentage: 50
 
 emailService:
   create: true
@@ -129,6 +151,11 @@ emailService:
     limits:
       cpu: 200m
       memory: 128Mi
+  hpa:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 70
 
 frontend:
   create: true
@@ -140,6 +167,15 @@ frontend:
   # One of: local, gcp, aws, azure, onprem, alibaba. When not set, defaults to "local" unless running in GKE, otherwise auto-sets to gcp.
   platform: local
   singleSharedSession: false
+  virtualService:
+    create: false
+    hosts:
+    - "*"
+    gateway:
+      name: asm-ingressgateway
+      namespace: asm-ingress
+      labelKey: asm
+      labelValue: ingressgateway
   canary:
     create: false
     progressDeadlineSeconds: 60
@@ -151,13 +187,7 @@ frontend:
       successRate: 99
       metricInterval: 30s
       duration: 500
-    hosts:
-    - "*"
-    gateway:
-      name: asm-ingressgateway
-      namespace: asm-ingress
-      labelKey: asm
-      labelValue: ingressgateway
+
   resources:
     requests:
       cpu: 100m
@@ -165,6 +195,11 @@ frontend:
     limits:
       cpu: 200m
       memory: 128Mi
+  hpa:
+    enabled: false
+    minReplicas: 5
+    maxReplicas: 125
+    targetCPUUtilizationPercentage: 50
 
 loadGenerator:
   create: true
@@ -190,6 +225,11 @@ paymentService:
     limits:
       cpu: 200m
       memory: 128Mi
+  hpa:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 70
 
 productCatalogService:
   create: true
@@ -205,6 +245,11 @@ productCatalogService:
     limits:
       cpu: 200m
       memory: 128Mi
+  hpa:
+    enabled: false
+    minReplicas: 4
+    maxReplicas: 60
+    targetCPUUtilizationPercentage: 60
 
 recommendationService:
   create: true
@@ -218,6 +263,11 @@ recommendationService:
     limits:
       cpu: 200m
       memory: 450Mi
+  hpa:
+    enabled: false
+    minReplicas: 5
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 60
 
 shippingService:
   create: true
@@ -231,6 +281,11 @@ shippingService:
     limits:
       cpu: 200m
       memory: 128Mi
+  hpa:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 50
+    targetCPUUtilizationPercentage: 70
 
 cartDatabase:
   # Specifies the type of the cartservice's database, could be either redis or spanner.

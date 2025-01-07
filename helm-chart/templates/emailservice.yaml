@@ -104,6 +104,28 @@ spec:
         resources:
           {{- toYaml .Values.emailService.resources | nindent 10 }}
 ---
+{{- if or .Values.global.hpa.enabled .Values.emailService.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.emailService.name }}-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.emailService.name }}
+  minReplicas: {{ .Values.emailService.hpa.minReplicas }}
+  maxReplicas: {{ .Values.emailService.hpa.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.emailService.hpa.targetCPUUtilizationPercentage }}
+---
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:

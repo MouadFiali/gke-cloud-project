@@ -92,6 +92,28 @@ spec:
           grpc:
             port: 9555
 ---
+{{- if or .Values.global.hpa.enabled .Values.adService.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.adService.name }}-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.adService.name }}
+  minReplicas: {{ .Values.adService.hpa.minReplicas }}
+  maxReplicas: {{ .Values.adService.hpa.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.adService.hpa.targetCPUUtilizationPercentage }}
+---
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:

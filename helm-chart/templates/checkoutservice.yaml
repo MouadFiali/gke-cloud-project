@@ -113,6 +113,28 @@ spec:
         resources:
           {{- toYaml .Values.checkoutService.resources | nindent 10 }}
 ---
+{{- if or .Values.global.hpa.enabled .Values.checkoutService.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.checkoutService.name }}-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.checkoutService.name }}
+  minReplicas: {{ .Values.checkoutService.hpa.minReplicas }}
+  maxReplicas: {{ .Values.checkoutService.hpa.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.checkoutService.hpa.targetCPUUtilizationPercentage }}
+---
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:

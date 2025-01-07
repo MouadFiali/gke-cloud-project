@@ -103,6 +103,28 @@ spec:
         resources:
           {{- toYaml .Values.currencyService.resources | nindent 10 }}
 ---
+{{- if or .Values.global.hpa.enabled .Values.currencyService.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.currencyService.name }}-hpa
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.currencyService.name }}
+  minReplicas: {{ .Values.currencyService.hpa.minReplicas }}
+  maxReplicas: {{ .Values.currencyService.hpa.maxReplicas }}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.currencyService.hpa.targetCPUUtilizationPercentage }}
+---
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
