@@ -101,7 +101,7 @@ cartService:
     enabled: false
     minReplicas: 2
     maxReplicas: 50
-    targetCPUUtilizationPercentage: 55
+    targetCPUUtilizationPercentage: 70
 
 checkoutService:
   create: true
@@ -117,9 +117,9 @@ checkoutService:
       memory: 128Mi
   hpa:
     enabled: false
-    minReplicas: 15
+    minReplicas: 3
     maxReplicas: 100
-    targetCPUUtilizationPercentage: 5
+    targetCPUUtilizationPercentage: 6
 
 currencyService:
   create: true
@@ -135,9 +135,9 @@ currencyService:
       memory: 128Mi
   hpa:
     enabled: false
-    minReplicas: 5
+    minReplicas: 3
     maxReplicas: 150
-    targetCPUUtilizationPercentage: 50
+    targetCPUUtilizationPercentage: 60
 
 emailService:
   create: true
@@ -197,9 +197,9 @@ frontend:
       memory: 128Mi
   hpa:
     enabled: false
-    minReplicas: 5
+    minReplicas: 3
     maxReplicas: 125
-    targetCPUUtilizationPercentage: 50
+    targetCPUUtilizationPercentage: 60
 
 loadGenerator:
   create: true
@@ -247,9 +247,9 @@ productCatalogService:
       memory: 128Mi
   hpa:
     enabled: false
-    minReplicas: 4
+    minReplicas: 2
     maxReplicas: 60
-    targetCPUUtilizationPercentage: 60
+    targetCPUUtilizationPercentage: 65
 
 recommendationService:
   create: true
@@ -265,9 +265,9 @@ recommendationService:
       memory: 450Mi
   hpa:
     enabled: false
-    minReplicas: 5
+    minReplicas: 2
     maxReplicas: 100
-    targetCPUUtilizationPercentage: 60
+    targetCPUUtilizationPercentage: 65
 
 shippingService:
   create: true
