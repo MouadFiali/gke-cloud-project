@@ -39,8 +39,12 @@ type delayMiddleware struct {
 }
 
 func (m *delayMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    // Add 3 second delay
-    time.Sleep(3 * time.Second)
+    // Skip delay for health check endpoints
+    if !strings.HasPrefix(r.URL.Path, "/_healthz") {
+        // Add 3 second delay only for application requests
+        time.Sleep(3 * time.Second)
+    }
+    
     // Call the next handler
     m.next.ServeHTTP(w, r)
 }
