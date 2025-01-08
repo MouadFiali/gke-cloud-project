@@ -34,6 +34,22 @@ import (
 	"google.golang.org/grpc"
 )
 
+type delayMiddleware struct {
+    next http.Handler
+}
+
+func (m *delayMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    // Add 3 second delay
+    time.Sleep(3 * time.Second)
+    // Call the next handler
+    m.next.ServeHTTP(w, r)
+}
+
+// Helper function to create new delay middleware
+func addDelay(next http.Handler) http.Handler {
+    return &delayMiddleware{next: next}
+}
+
 const (
 	port            = "8080"
 	defaultCurrency = "USD"
@@ -166,6 +182,7 @@ func main() {
 
 	var handler http.Handler = r
 	handler = &logHandler{log: log, next: handler}     // add logging
+	handler = addDelay(handler)
 	handler = ensureSessionID(handler)                 // add session ID
 	handler = otelhttp.NewHandler(handler, "frontend") // add OTel tracing
 
