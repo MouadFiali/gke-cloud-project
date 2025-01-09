@@ -6,12 +6,17 @@ LOGGING="${3:-false}"
 GRAFANA_SMTP_HOST="${4:-}"
 GRAFANA_SMTP_USER="${5:-}"
 GRAFANA_SMTP_PASSWORD="${6:-}"
+SIDECARS="${7:-}"
+VIRTUAL_SERVICE="${8:-}"
+CANARY="${9:-}"
+EXTERNAL_FRONTEND_SERVICE="${10:-}"
+HPA="${11:-}"
 
 # Navigate to the ansible directory
 cd ../ansible
 
 # Run install-istio-flagger playbook
-ansible-playbook install-istio-flagger.yml
+ansible-playbook install-istio-flagger.yml --extra-vars "app_namespace=$NAMESPACE sidecars=$SIDECARS virtual_service=$VIRTUAL_SERVICE canary=$CANARY"
 
 # Check if the third playbook ran successfully
 if [ $? -ne 0 ]; then
@@ -20,7 +25,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Run the deploy-argocd playbook
-ansible-playbook deploy-argocd.yaml --extra-vars "app_namespace=$NAMESPACE tracing=$TRACING logging=$LOGGING"
+ansible-playbook deploy-argocd.yaml --extra-vars "app_namespace=$NAMESPACE tracing=$TRACING logging=$LOGGING sidecars=$SIDECARS virtualService=$VIRTUAL_SERVICE canary=$CANARY externalService=$EXTERNAL_FRONTEND_SERVICE hpa=$HPA"
 
 # Check if the first playbook ran successfully
 if [ $? -ne 0 ]; then

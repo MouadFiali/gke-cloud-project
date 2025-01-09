@@ -1,38 +1,41 @@
+# local variable to check if load generator should be created
+locals {
+  create_load_generator = (var.deploy_load_generator_server && 
+    (var.deploy_canary_frontend || var.create_frontend_external_ip || var.use_istio_virtual_service))
+}
+
 # Add firewall rule for SSH access to load generator
 resource "google_compute_firewall" "allow_ssh_load_generator" {
+  count   = local.create_load_generator ? 1 : 0
   name    = "${var.name}-allow-ssh-load-generator"
-  network = "default"
+  network = "main"
 
   allow {
     protocol = "tcp"
     ports    = ["22", "80", "443"]
   }
-
-  # Allow SSH only from your IP address for security
   source_ranges = ["0.0.0.0/0"]
-  
-  # Target only the load generator instance
-  target_tags = ["load-generator"]
+  target_tags   = ["load-generator"]
+  depends_on = [ google_compute_network.main ]
 }
 
 resource "google_compute_firewall" "allow_internal_ports" {
+  count   = local.create_load_generator ? 1 : 0
   name    = "${var.name}-allow-internal-ports"
-  network = "default"
+  network = "main"
 
   allow {
     protocol = "tcp"
     ports    = ["9646", "8089"]
   }
-  
-  # Allow internal access only
   source_ranges = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
-  
-  # Target only the load generator instance
-  target_tags = ["load-generator"]
+  target_tags   = ["load-generator"]
+  depends_on = [ google_compute_network.main ]
 }
 
 # Update the load generator VM configuration - use default network
 resource "google_compute_instance" "load_generator" {
+  count        = local.create_load_generator ? 1 : 0
   name         = "${var.name}-load-generator"
   machine_type = "e2-standard-2"
   zone         = var.zone
@@ -45,12 +48,11 @@ resource "google_compute_instance" "load_generator" {
     }
   }
 
-  # Use default network - same as GKE cluster
   network_interface {
-    network = "default"
+    subnetwork = google_compute_subnetwork.private.self_link
 
     access_config {
-      # This block enables the external IP
+      # Enables an external IP
     }
   }
 
@@ -62,6 +64,9 @@ resource "google_compute_instance" "load_generator" {
 
 # Generate Ansible inventory using gcloud's SSH keys
 resource "local_file" "ansible_inventory" {
+  count    = local.create_load_generator ? 1 : 0
+
+  
   filename = "../ansible/inventory.yml"
   content  = <<-EOT
     all:
@@ -71,7 +76,7 @@ resource "local_file" "ansible_inventory" {
 
       hosts:
         load_generator:
-          ansible_host: ${google_compute_instance.load_generator.network_interface[0].access_config[0].nat_ip}
+          ansible_host: ${google_compute_instance.load_generator[count.index].network_interface[0].access_config[0].nat_ip}
           ansible_host_key_checking: false
   EOT
 
@@ -81,9 +86,12 @@ resource "local_file" "ansible_inventory" {
 }
 
 resource "null_resource" "check_connectivity" {
+  count = local.create_load_generator ? 1 : 0
+
+
   triggers = {
-    instance_id = google_compute_instance.load_generator.id
-    firewall_id = google_compute_firewall.allow_ssh_load_generator.id
+    instance_id = google_compute_instance.load_generator[count.index].id
+    firewall_id = google_compute_firewall.allow_ssh_load_generator[count.index].id
   }
 
   provisioner "local-exec" {
@@ -98,7 +106,7 @@ resource "null_resource" "check_connectivity" {
       echo "Waiting for SSH connectivity..."
       
       until [ "$attempt" -gt "$max_attempts" ]; do
-        if ssh $${SSH_OPTS} ${var.gcpUser}@${google_compute_instance.load_generator.network_interface[0].access_config[0].nat_ip} \
+        if ssh $${SSH_OPTS} ${var.gcpUser}@${google_compute_instance.load_generator[count.index].network_interface[0].access_config[0].nat_ip} \
           "echo 'SSH connection successful'" > /dev/null 2>&1; then
           echo "SSH is ready!"
           exit 0
@@ -122,8 +130,10 @@ resource "null_resource" "check_connectivity" {
 
 # Run Ansible playbook
 resource "null_resource" "install_tools_load_generator" {
+  count = local.create_load_generator ? 1 : 0
+
   triggers = {
-    instance_id = google_compute_instance.load_generator.id
+    instance_id = google_compute_instance.load_generator[count.index].id
   }
 
   provisioner "local-exec" {
@@ -135,14 +145,16 @@ resource "null_resource" "install_tools_load_generator" {
   ]
 }
 
-# Run Ansible playbook
+# Deploy load generator
 resource "null_resource" "deploy_load_generator" {
+  count = local.create_load_generator ? 1 : 0
+
   triggers = {
-    instance_id = google_compute_instance.load_generator.id
+    instance_id = google_compute_instance.load_generator[0].id
   }
 
   provisioner "local-exec" {
-    command = "ANSIBLE_DEPRECATION_WARNINGS=False ansible-playbook -i ../ansible/inventory.yml ../ansible/deploy-load-generator.yml"
+    command = "ANSIBLE_DEPRECATION_WARNINGS=False ansible-playbook -i ../ansible/inventory.yml ../ansible/deploy-load-generator.yml --extra-vars \"app_namespace=${var.namespace} deploy_canary_frontend=${var.deploy_canary_frontend} use_istio_virtual_service=${var.use_istio_virtual_service}\""
   }
 
   depends_on = [

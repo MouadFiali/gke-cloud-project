@@ -112,7 +112,7 @@
     # Install Tempo
     - name: Install Tempo
       shell: >
-        helm install tempo grafana/tempo
+        helm upgrade --install tempo grafana/tempo
         --namespace monitoring
         --values custom-values/tempo-values.yaml
       when: tracing | bool
@@ -120,7 +120,7 @@
     # Install Loki
     - name: Install Loki
       shell: >
-        helm install loki grafana/loki
+        helm upgrade --install loki grafana/loki
         --namespace monitoring
         --values custom-values/loki-custom-values.yaml
       when: logging | bool

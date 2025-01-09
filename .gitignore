@@ -6,3 +6,4 @@ terraform/id_rsa
 ansible/inventory.yml
 terraform/kubeconfig
 terraform/gke_gcloud_auth_plugin_cache
+resources..txt

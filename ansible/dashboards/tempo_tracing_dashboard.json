@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 31,
+  "id": 42,
   "links": [],
   "panels": [
     {
@@ -241,14 +241,14 @@
     "list": [
       {
         "current": {
-          "text": "5872cd824a64e83c59c3501e945db4e3",
-          "value": "5872cd824a64e83c59c3501e945db4e3"
+          "text": "{}",
+          "value": "{}"
         },
         "hide": 2,
         "name": "traceId",
         "options": [
           {
-            "selected": false,
+            "selected": true,
             "text": "{}",
             "value": "{}"
           }
@@ -306,26 +306,30 @@
       },
       {
         "current": {
-          "text": "unset",
-          "value": "unset"
+          "text": "ok",
+          "value": "ok"
         },
-        "datasource": {
-          "type": "tempo",
-          "uid": "tempo"
-        },
-        "definition": "",
-        "description": "",
         "label": "Status",
         "name": "statusVar",
-        "options": [],
-        "query": {
-          "label": "status",
-          "refId": "TempoDatasourceVariableQueryEditor-VariableQuery",
-          "type": 1
-        },
-        "refresh": 1,
-        "regex": "",
-        "type": "query"
+        "options": [
+          {
+            "selected": true,
+            "text": "ok",
+            "value": "ok"
+          },
+          {
+            "selected": false,
+            "text": "error",
+            "value": "error"
+          },
+          {
+            "selected": false,
+            "text": "unset",
+            "value": "unset"
+          }
+        ],
+        "query": "ok, error, unset",
+        "type": "custom"
       },
       {
         "current": {
@@ -441,6 +445,6 @@
   "timezone": "browser",
   "title": "Tracing",
   "uid": "ce6x37edqze2of",
-  "version": 46,
+  "version": 2,
   "weekStart": ""
 }

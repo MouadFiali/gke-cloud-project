@@ -40,7 +40,20 @@ grafana:
           editable: true
           options:
             path: /var/lib/grafana/dashboards/default
+        - name: 'logging'
+          orgId: 1
+          folder: 'loki-dashboards'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/logging
+          
   dashboards:
+    logging:
+      logging-dashboard:
+        gnetId: 16966
+        datasource: loki
     default:
       istio-mesh-dashboard:
         gnetId: 7639
@@ -102,7 +115,6 @@ prometheus:
     scrapeInterval: 15s
     scrapeTimeout: 10s
     evaluationInterval: 1m
-    # Import the scrape configurations from Istio's Prometheus
     additionalScrapeConfigs:
       - job_name: 'kubernetes-pods'
         kubernetes_sd_configs:
@@ -147,19 +159,9 @@ prometheus:
           - redis-cart.app:9121
 
 additionalPrometheusRulesMap:
-  locust-alerts:
+  canary-alerts:
     editable: true
     groups:
-      - name: locust-alert-group
-        rules:     
-          - alert: LocustFailRatio
-            expr: locust_requests_fail_ratio{instance="online-boutique-load-generator:9646"} <= 100
-            for: 0s
-            labels:
-              severity: warning
-            annotations:
-              summary: "Locust alert: The fail ratio has exceeded 1% of the total requests."
-              description: "Locust alert: The fail ratio has exceeded 1% of the total requests."
       - name: Canary-alert-group
         rules:
           - alert: canary_rollback
@@ -170,44 +172,19 @@ additionalPrometheusRulesMap:
             annotations:
               summary: "Canary failed"
               description: "Workload {{ $labels.name }} namespace {{ $labels.namespace }}"
-
-defaultRules:
-  create: true
-  rules:
-    alertmanager: false
-    etcd: false
-    configReloaders: false
-    general: false
-    k8sContainerCpuUsageSecondsTotal: false
-    k8sContainerMemoryCache: false
-    k8sContainerMemoryRss: false
-    k8sContainerMemorySwap: false
-    k8sContainerResource: false
-    k8sContainerMemoryWorkingSetBytes: false
-    k8sPodOwner: false
-    kubeApiserverAvailability: false
-    kubeApiserverBurnrate: false
-    kubeApiserverHistogram: false
-    kubeApiserverSlos: false
-    kubeControllerManager: false
-    kubelet: false
-    kubeProxy: false
-    kubePrometheusGeneral: false
-    kubePrometheusNodeRecording: false
-    kubernetesApps: true
-    kubernetesResources: true
-    kubernetesStorage: true
-    kubernetesSystem: true
-    kubeSchedulerAlerting: false
-    kubeSchedulerRecording: false
-    kubeStateMetrics: false
-    network: false
-    node: false
-    nodeExporterAlerting: true
-    nodeExporterRecording: true
-    prometheus: false
-    prometheusOperator: false
-    windows: false
+  locust-alerts:
+    editable: true
+    groups:
+      - name: locust-alert-group
+        rules:     
+          - alert: LocustFailRatio
+            expr: locust_requests_fail_ratio{instance="online-boutique-load-generator:9646"} > 0.01
+            for: 0s
+            labels:
+              severity: warning
+            annotations:
+              summary: "Locust alert: The fail ratio has exceeded 1% of the total requests."
+              description: "Locust alert: The fail ratio has exceeded 1% of the total requests."
       
 alertmanager:
   config:

@@ -5,6 +5,11 @@
       app_namespace: "{{ app_namespace | default('default') }}"
       tracing: "{{ tracing | default('false') }}"
       logging: "{{ logging | default('false') }}"
+      hpa: "{{ hpa | default('false') }}"
+      externalService: "{{ externalService | default('false') }}"
+      virtualService: "{{ virtualService | default('false') }}"
+      canary: "{{ canary | default('false') }}"
+      sidecars: "{{ sidecars | default('false') }}"
   tasks:
     # Check if helm exists
     - name: Check if Helm is installed
@@ -44,7 +49,14 @@
       shell: kubectl create namespace {{ app_namespace }}
       when: ns_check.rc != 0
 
-    # Create Docker registry secret in the app_namespace
+    # Check if Docker registry secret exists in the app_namespace
+    - name: Check if Docker registry secret exists in {{ app_namespace }} namespace
+      shell: kubectl get secret gitlab-registry-secret -n {{ app_namespace }}
+      register: secret_check
+      failed_when: false
+      changed_when: false
+
+    # Create Docker registry secret in the app_namespace if it doesn't exist
     - name: Create Docker registry secret in {{ app_namespace }} namespace
       shell: |
         kubectl create secret docker-registry gitlab-registry-secret \
@@ -53,7 +65,7 @@
         --docker-password=glpat--UnwGAbxPstNQTN7b7as \
         --docker-email=hamdaneyassine10@gmail.com \
         -n {{ app_namespace }}
-      when: ns_check.rc == 0
+      when: ns_check.rc == 0 and secret_check.rc != 0
 
     # Check if argocd namespace exists
     - name: Check if Argo CD namespace exists

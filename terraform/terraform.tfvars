@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-gcp_project_id = "mosig-training"
+gcp_project_id = "mosig-cloud-444913"
 
 service_account_path = "../project-sa.json"
 
@@ -26,12 +26,22 @@ memorystore = false
 
 namespace = "app"
 
-tracing = false
+tracing = true
 
-logging = false
+logging = true
 
 grafana_smtp_host = "sandbox.smtp.mailtrap.io:2525"
 
-grafana_smtp_user = "3b2d2dac48881e"
+grafana_smtp_user = "3dcbd0fac10a20"
 
-grafana_smtp_password = "ff7cbfcfca5d30"
+grafana_smtp_password = "76b4a8579a5cb7"
+
+enable_cluster_autoscaler = true
+
+enable_horizontal_pod_autoscaling = true
+
+istio_sidecar=true
+
+deploy_canary_frontend=true
+
+deploy_load_generator_server=true

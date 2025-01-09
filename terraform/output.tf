@@ -22,9 +22,7 @@ output "cluster_name" {
   value       = var.enable_autopilot ? resource.google_container_cluster.gke_autopilot[0].name : resource.google_container_cluster.gke_standard[0].name
 }
 
-
-# Output the external IP
 output "ingress_ip" {
   description = "External IP address of the ASM ingress gateway"
-  value       = data.kubernetes_service.ingress_gateway.status.0.load_balancer.0.ingress.0.ip
+  value       = var.use_istio_virtual_service || var.deploy_canary_frontend ? data.kubernetes_service.ingress_gateway[0].status.0.load_balancer.0.ingress.0.ip : null
 }

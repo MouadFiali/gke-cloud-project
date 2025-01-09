@@ -39,7 +39,7 @@ variable "name" {
 variable "region" {
   type        = string
   description = "Region of the new GKE cluster"
-  default     = "us-central1"
+  default     = "europe-west6"
 }
 
 variable "zone" {
@@ -72,12 +72,6 @@ variable "enable_autopilot" {
   default     = true
 }
 
-variable "filepath_manifest" {
-  type        = string
-  description = "Path to Online Boutique's Kubernetes resources, written using Kustomize"
-  default     = "../kustomize/"
-}
-
 variable "memorystore" {
   type        = bool
   description = "If true, Online Boutique's in-cluster Redis cache will be replaced with a Google Cloud Memorystore Redis cache"
@@ -96,4 +90,58 @@ variable "grafana_smtp_user" {
 variable "grafana_smtp_password" {
   type        = string
   description = "SMTP password for Grafana"
+}
+
+variable "enable_cluster_autoscaler" {
+  description = "Enable cluster autoscaling"
+  type        = bool
+  default     = true
+}
+
+variable "enable_horizontal_pod_autoscaling" {
+  description = "Enable horizontal pod autoscaling"
+  type        = bool
+  default     = true
+}
+
+variable "min_node_count" {
+  description = "Minimum number of nodes in the node pool"
+  type        = number
+  default     = 2
+}
+
+variable "max_node_count" {
+  description = "Maximum number of nodes in the node pool"
+  type        = number
+  default     = 30
+}
+
+variable "istio_sidecar" {
+  description = "Enable Istio sidecar injection"
+  type        = bool
+  default     = true
+}
+
+variable "use_istio_virtual_service" {
+  description = "Use Istio VirtualService for routing"
+  type        = bool
+  default     = false
+}
+
+variable "create_frontend_external_ip" {
+  description = "Create an external IP for the frontend service"
+  type        = bool
+  default     = false
+}
+
+variable "deploy_canary_frontend" {
+  description = "Deploy a canary frontend service using flagger"
+  type        = bool
+  default     = true
+}
+
+variable "deploy_load_generator_server" {
+  description = "Deploy a load generator server"
+  type        = bool
+  default     = true
 }

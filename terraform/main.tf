@@ -18,6 +18,7 @@ locals {
   base_apis = [
     "container.googleapis.com",
     "compute.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com"
   ]
@@ -76,12 +77,69 @@ resource "google_container_cluster" "gke_autopilot" {
   ]
 }
 
+resource "google_compute_network" "main" {
+  name                            = "main"
+  routing_mode                    = "REGIONAL"
+  auto_create_subnetworks         = false
+  delete_default_routes_on_create = false
+
+}
+
+resource "google_compute_subnetwork" "private" {
+  name                     = "pelstix-private-subnet"
+  ip_cidr_range            = "10.0.0.0/16"
+  region                   = var.region
+  network                  = google_compute_network.main.id
+  private_ip_google_access = true
+
+  secondary_ip_range {
+    range_name    = "k8s-pod-range"
+    ip_cidr_range = "10.1.0.0/16"
+  }
+  secondary_ip_range {
+    range_name    = "k8s-service-range"
+    ip_cidr_range = "10.2.0.0/16"
+  }
+}
+
+resource "google_compute_router" "router" {
+  name    = "router-new"
+  region  = var.region
+  network = google_compute_network.main.id
+}
+
+resource "google_compute_router_nat" "nat" {
+  name   = "nat"
+  router = google_compute_router.router.name
+  region = var.region
+
+  source_subnetwork_ip_ranges_to_nat = "LIST_OF_SUBNETWORKS"
+  nat_ip_allocate_option             = "MANUAL_ONLY"
+
+  subnetwork {
+    name                    = google_compute_subnetwork.private.id
+    source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+  }
+
+  nat_ips = [google_compute_address.nat.self_link]
+}
+
+# https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_address
+resource "google_compute_address" "nat" {
+  name         = "nat"
+  address_type = "EXTERNAL"
+  network_tier = "PREMIUM"
+}
+
 # Create GKE Standard cluster
 resource "google_container_cluster" "gke_standard" {
   count = var.enable_autopilot ? 0 : 1
 
   name     = var.name
-  location = var.zone
+  location = var.region
+
+  network                  = google_compute_network.main.self_link
+  subnetwork               = google_compute_subnetwork.private.self_link
 
   # We can't create a cluster with no node pool defined, but we want to only use
   # separately managed node pools. So we create the smallest possible default
@@ -89,9 +147,17 @@ resource "google_container_cluster" "gke_standard" {
   remove_default_node_pool = true
   initial_node_count       = 1
 
-  # Set networking config
   ip_allocation_policy {
+    cluster_secondary_range_name  = "k8s-pod-range"
+    services_secondary_range_name = "k8s-service-range"
   }
+
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = false
+    master_ipv4_cidr_block = "10.3.0.0/28"
+  }
+
 
   deletion_protection = false
 
@@ -109,17 +175,32 @@ resource "google_container_node_pool" "primary_nodes" {
   count = var.enable_autopilot ? 0 : 1
 
   name       = "${var.name}-node-pool"
-  location   = var.zone
   cluster    = google_container_cluster.gke_standard[0].name
-  node_count = 4
+  initial_node_count = var.min_node_count
+
+  management {
+    auto_repair  = true
+    auto_upgrade = true
+  }
 
   node_config {
     machine_type = "e2-standard-2"
 
+    labels = {
+      role = "general"
+    }
     # Google recommends custom service accounts that have cloud-platform scope and permissions granted via IAM Roles.
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform"
     ]
+  }
+
+  dynamic "autoscaling" {
+    for_each = var.enable_cluster_autoscaler ? [1] : []
+    content {
+      min_node_count = var.min_node_count
+      max_node_count = var.max_node_count
+    }
   }
 }
 
@@ -154,17 +235,33 @@ resource "null_resource" "reload_kubectl_config" {
   }
 }
 
+# In main.tf
 resource "null_resource" "deploy_services_using_ansible" {
   depends_on = [
     null_resource.reload_kubectl_config
   ]
 
   provisioner "local-exec" {
-    command = "cd ../scripts && ./run_ansible_playbooks.sh ${var.namespace} ${var.tracing} ${var.logging} ${var.grafana_smtp_host} ${var.grafana_smtp_user} ${var.grafana_smtp_password}"
+    command = <<-EOT
+      cd ../scripts && ./run_ansible_playbooks.sh \
+      ${var.namespace} \
+      ${var.tracing} \
+      ${var.logging} \
+      ${var.grafana_smtp_host} \
+      ${var.grafana_smtp_user} \
+      ${var.grafana_smtp_password} \
+      ${var.istio_sidecar} \
+      ${var.use_istio_virtual_service} \
+      ${var.deploy_canary_frontend} \
+      ${var.create_frontend_external_ip} \
+      ${var.enable_horizontal_pod_autoscaling} \
+    EOT
   }
 }
 
 data "kubernetes_service" "ingress_gateway" {
+  count = var.use_istio_virtual_service || var.deploy_canary_frontend ? 1 : 0
+  
   depends_on = [null_resource.deploy_services_using_ansible]
   
   metadata {

@@ -1,187 +1,137 @@
 ---
-# This Ansible playbook is used to setup Istio and Flagger on a GCP Kubernetes cluster.
 - name: Setup Istio and Flagger on GCP Kubernetes cluster
   hosts: localhost
+  vars:
+    app_namespace: "{{ app_namespace | default('app') }}"
+    sidecars: "{{ sidecars | default('false') }}"
+    virtual_service: "{{ virtual_service | default('false') }}"
+    canary: "{{ canary | default('false') }}"
+
   tasks:
-    # Grant cluster administrator (admin) permissions to the current user.
+    - name: Check if playbook should continue
+      meta: end_play
+      when: sidecars | lower == 'false'
+
     - name: Read service account email from json
       shell: |
         jq -r .client_email ../project-sa.json
       register: sa_email
+
+    - name: Check if cluster admin binding exists
+      shell: kubectl get clusterrolebinding cluster-admin-binding
+      register: binding_check
+      ignore_errors: true
 
     - name: Grant cluster admin permissions
       shell: |
         kubectl create clusterrolebinding cluster-admin-binding \
           --clusterrole=cluster-admin \
           --user="{{ sa_email.stdout }}"
-      register: admin_binding
-      failed_when: admin_binding.rc != 0 and 'AlreadyExists' not in admin_binding.stderr
+      when: binding_check.rc != 0
 
-    # Add Istio Helm repository
-    - name: Add Istio Helm repository
-      shell: helm repo add istio https://istio-release.storage.googleapis.com/charts
+    - name: Add Helm repositories
+      shell: "{{ item.command }}"
+      loop:
+        - { command: "helm repo add istio https://istio-release.storage.googleapis.com/charts" }
+        - { command: "helm repo add flagger https://flagger.app" }
+        - { command: "helm repo add kiali https://kiali.org/helm-charts" }
       register: repo_add
-      failed_when: repo_add.rc != 0 and 'already exists' not in repo_add.stderr
+      changed_when: "'has been added' in repo_add.stderr"
+      failed_when: 
+        - repo_add.rc != 0 
+        - "'already exists' not in repo_add.stderr"
 
-    # Update Helm repositories
     - name: Update Helm repositories
       shell: helm repo update
       register: repo_update
-      failed_when: repo_update.rc != 0
+      changed_when: repo_update.rc == 0
 
-    # Validate namespace doesn't exist before creation
     - name: Check if istio-system namespace exists
       shell: kubectl get namespace istio-system
-      register: namespace_check
+      register: istio_namespace_check
       ignore_errors: true
 
-    # Install Istio base chart
-    - name: Install Istio base chart
-      shell: helm install istio-base istio/base -n istio-system --set defaultRevision=default --create-namespace
-      register: base_install
-      failed_when: base_install.rc != 0
-      when: namespace_check.rc != 0
+    - name: Check existing Istio installation
+      shell: helm list -n istio-system
+      register: helm_list
+      ignore_errors: true
+      when: istio_namespace_check.rc == 0
 
-    # Wait for CRDs to be ready
+    - name: Install Istio base chart
+      shell: helm upgrade --install istio-base istio/base -n istio-system --set defaultRevision=default --create-namespace
+      register: base_install
+      when: >
+        istio_namespace_check.rc != 0 or
+        (helm_list.stdout is defined and 'istio-base' not in helm_list.stdout)
+
     - name: Wait for Istio CRDs to be established
       shell: |
         kubectl wait --for=condition=Established crd --all -n istio-system --timeout=300s
       register: crd_wait
-      failed_when: crd_wait.rc != 0
       retries: 3
       delay: 10
+      until: crd_wait.rc == 0
 
-    # Install Istio discovery chart
     - name: Install Istio discovery chart
-      shell: helm install istiod istio/istiod -n istio-system --wait
+      shell: helm upgrade --install istiod istio/istiod -n istio-system --wait
       register: istiod_install
-      failed_when: istiod_install.rc != 0
 
-    # # Wait for istiod deployment to be ready
-    # - name: Wait for istiod deployment to be ready
-    #   shell: |
-    #     kubectl wait --for=condition=Available deployment/istiod -n istio-system --timeout=300s
-    #   register: istiod_wait
-    #   failed_when: istiod_wait.rc != 0
-    #   retries: 3
-    #   delay: 10
+    - block:
+      - name: Install Flagger's Canary CRD
+        shell: kubectl apply -f https://raw.githubusercontent.com/fluxcd/flagger/main/artifacts/flagger/crd.yaml
+        register: flagger_crd
 
-    # Add Flagger Helm repository
-    - name: Add Flagger Helm repository
-      shell: helm repo add flagger https://flagger.app
-      register: flagger_repo_add
-      failed_when: flagger_repo_add.rc != 0 and 'already exists' not in flagger_repo_add.stderr
-
-    # Update Helm repositories after adding Flagger
-    - name: Update Helm repositories for Flagger
-      shell: helm repo update
-      register: repo_update_flagger
-      failed_when: repo_update_flagger.rc != 0
-
-    # Install Flagger's Canary CRD
-    - name: Install Flagger's Canary CRD
-      shell: kubectl apply -f https://raw.githubusercontent.com/fluxcd/flagger/main/artifacts/flagger/crd.yaml
-      register: flagger_crd
-      failed_when: flagger_crd.rc != 0
-
-    # Wait for Flagger CRDs to be established
-    - name: Wait for Flagger CRDs to be established
-      shell: |
-        kubectl wait --for=condition=Established crd/canaries.flagger.app --timeout=300s
-      register: flagger_crd_wait
-      failed_when: flagger_crd_wait.rc != 0
-      retries: 3
-      delay: 10
-
-    # Install Flagger
-    - name: Deploy Flagger for Istio
-      shell: >
-        helm upgrade -i flagger flagger/flagger 
-        --namespace=istio-system 
-        --set crd.create=false 
-        --set meshProvider=istio 
-        --set metricsServer=http://kube-prometheus-stack-prometheus.monitoring:9090
-        --wait
-      register: flagger_install
-      failed_when: flagger_install.rc != 0
-
-    # # Wait for Flagger deployment to be ready
-    # - name: Wait for Flagger deployment to be ready
-    #   shell: |
-    #     kubectl wait --for=condition=Available deployment/flagger -n istio-system --timeout=300s
-    #   register: flagger_wait
-    #   failed_when: flagger_wait.rc != 0
-    #   retries: 3
-    #   delay: 10
-
-    # Validate Flagger installation
-    - name: Validate Flagger installation
-      shell: |
-        # Check if Flagger deployment is ready
-        FLAGGER_READY=$(kubectl get deployment flagger -n istio-system -o jsonpath='{.status.readyReplicas}')
-        if [ "$FLAGGER_READY" != "1" ]; then
-          echo "Flagger deployment is not ready"
-          exit 1
-        fi
+      - name: Wait for Flagger CRDs to be established
+        shell: |
+          kubectl wait --for=condition=Established crd/canaries.flagger.app --timeout=300s
+        register: flagger_crd_wait
+        retries: 3
+        delay: 10
+        until: flagger_crd_wait.rc == 0
         
-        # Check if Canary CRD is properly installed
-        if ! kubectl get crd | grep -q "canaries.flagger.app"; then
-          echo "Canary CRD is not installed properly"
-          exit 1
-        fi
-      register: flagger_validation
-      failed_when: flagger_validation.rc != 0
+      - name: Deploy Flagger for Istio
+        shell: >
+          helm upgrade -i flagger flagger/flagger 
+          --namespace=istio-system 
+          --set crd.create=false 
+          --set meshProvider=istio 
+          --set metricsServer=http://kube-prometheus-stack-prometheus.monitoring:9090
+          --wait
+        register: flagger_install
+      when: canary | lower == 'true'
 
-    # Create and configure asm-ingress namespace
-    - name: Create asm-ingress namespace
-      shell: kubectl create namespace asm-ingress
-      register: create_asm_ingress
-      failed_when: create_asm_ingress.rc != 0 and 'AlreadyExists' not in create_asm_ingress.stderr
+    - block:
+      - name: Check if asm-ingress namespace exists
+        shell: kubectl get namespace asm-ingress
+        register: asm_namespace_check
+        ignore_errors: true
 
-    - name: Label asm-ingress namespace
-      shell: |
-        kubectl label namespace asm-ingress istio-injection=enabled
-        kubectl label namespace asm-ingress name=asm-ingress
-      register: label_asm_ingress
-      failed_when: label_asm_ingress.rc != 0
-      
-    # Deploy ASM ingress components
-    - name: Deploy ASM ingress gateway deployment and service
-      shell: kubectl apply -f https://github.com/GoogleCloudPlatform/anthos-service-mesh-samples/raw/main/docs/ingress-gateway-asm-manifests/base/deployment-service.yaml -n asm-ingress
-      register: deploy_asm_gateway
-      failed_when: deploy_asm_gateway.rc != 0
+      - name: Create asm-ingress namespace
+        shell: kubectl create namespace asm-ingress
+        when: asm_namespace_check.rc != 0
 
-    - name: Deploy ASM gateway resource
-      shell: kubectl apply -f  https://github.com/GoogleCloudPlatform/anthos-service-mesh-samples/raw/main/docs/ingress-gateway-asm-manifests/base/gateway.yaml  -n asm-ingress
-      register: deploy_gateway
-      failed_when: deploy_gateway.rc != 0
+      - name: Label asm-ingress namespace
+        shell: |
+          kubectl label namespace asm-ingress istio-injection=enabled --overwrite=true
+          kubectl label namespace asm-ingress name=asm-ingress --overwrite=true
+        register: label_asm_ingress
 
-    - name: Deploy ASM authorization policy
-      shell: kubectl apply -f https://github.com/GoogleCloudPlatform/anthos-service-mesh-samples/raw/main/docs/ingress-gateway-asm-manifests/with-authorization-policies/authorizationpolicy.yaml -n asm-ingress
-      register: deploy_authpolicy
-      failed_when: deploy_authpolicy.rc != 0
+      - name: Deploy ASM components with kubectl apply
+        shell: "{{ item }}"
+        loop:
+          - kubectl apply -f https://github.com/GoogleCloudPlatform/anthos-service-mesh-samples/raw/main/docs/ingress-gateway-asm-manifests/base/deployment-service.yaml -n asm-ingress
+          - kubectl apply -f https://github.com/GoogleCloudPlatform/anthos-service-mesh-samples/raw/main/docs/ingress-gateway-asm-manifests/base/gateway.yaml -n asm-ingress
+          - kubectl apply -f https://github.com/GoogleCloudPlatform/anthos-service-mesh-samples/raw/main/docs/ingress-gateway-asm-manifests/with-authorization-policies/authorizationpolicy.yaml -n asm-ingress
+        register: deploy_asm
 
-    # Wait for ASM ingress gateway deployment to be ready
-    - name: Wait for ASM ingress gateway deployment
-      shell: kubectl wait --for=condition=Available deployment/asm-ingressgateway -n asm-ingress --timeout=300s
-      register: wait_asm_gateway
-      failed_when: wait_asm_gateway.rc != 0
-      retries: 3
-      delay: 10
+      - name: Wait for ASM ingress gateway deployment
+        shell: kubectl wait --for=condition=Available deployment/asm-ingressgateway -n asm-ingress --timeout=300s
+        register: wait_asm_gateway
+        retries: 3
+        delay: 10
+        until: wait_asm_gateway.rc == 0
+      when: canary | lower == 'true' or virtual_service | lower == 'true'
 
-    # Add Kiali Helm repository
-    - name: Add Kiali Helm repository
-      shell: helm repo add kiali https://kiali.org/helm-charts
-      register: kiali_repo_add
-      failed_when: kiali_repo_add.rc != 0 and 'already exists' not in kiali_repo_add.stderr
-
-    # Update Helm repositories after adding Kiali
-    - name: Update Helm repositories for Kiali
-      shell: helm repo update
-      register: repo_update_kiali
-      failed_when: repo_update_kiali.rc != 0
-
-    # Install Kiali Operator
     - name: Install Kiali Operator
       shell: >
         helm upgrade --install \
@@ -190,28 +140,21 @@
           --create-namespace \
           kiali-operator kiali/kiali-operator
       register: kiali_install
-      failed_when: kiali_install.rc != 0
 
-    # # Wait for Kiali operator deployment to be ready
-    # - name: Wait for Kiali operator deployment
-    #   shell: |
-    #     kubectl wait --for=condition=Available deployment/kiali-operator -n kiali-operator --timeout=300s
-    #   register: kiali_operator_wait
-    #   failed_when: kiali_operator_wait.rc != 0
-    #   retries: 10
-    #   delay: 10
-
-    # Apply routing rules for monitoring services in istio-system (Kiali and Grafana)
-    - name: Apply routing rules for monitoring services in istio-system (Kiali and Grafana and ArgoCD)
+    - name: Apply routing rules for monitoring services
       shell: kubectl apply -f ./monitoring-virtualservice.yaml
+      when: canary | lower == 'true' or virtual_service | lower == 'true'
 
-    # Create and configure app namespace
-    - name: Create app namespace
-      shell: kubectl create namespace app
-      register: create_app
-      failed_when: create_app.rc != 0 and 'AlreadyExists' not in create_app.stderr
+    - name: Check if custom namespace exists
+      shell: kubectl get namespace {{ app_namespace }}
+      register: namespace_check
+      ignore_errors: true
 
-    - name: Label app namespace for istio injection
-      shell: kubectl label namespace app istio-injection=enabled
+    - name: Create custom namespace
+      shell: kubectl create namespace {{ app_namespace }}
+      when: namespace_check.rc != 0
+
+    - name: Label custom namespace for istio injection
+      shell: |
+        kubectl label namespace {{ app_namespace }} istio-injection=enabled --overwrite=true
       register: label_app
-      failed_when: label_app.rc != 0

@@ -19,10 +19,12 @@ spec:
         global:
           imagePullSecrets:
             - name: gitlab-registry-secret
+          hpa:
+            enabled: {{ hpa | string | lower }}
         networkPolicies:
           create: true
         sidecars:
-          create: true
+          create: {{ sidecars | string | lower }}
         serviceAccounts:
           create: true
         opentelemetryCollector:
@@ -34,14 +36,12 @@ spec:
         googleCloudOperations:
           tracing: {{ tracing | string | lower }}
         frontend:
-          externalService: false
+          externalService: {{ externalService | string | lower }}
+          virtualService:
+            create: {{ virtualService | string | lower }}
           canary:
-            create: true
-            gateway:
-              name: asm-ingressgateway
-              namespace: asm-ingress
-              labelKey: asm
-              labelValue: ingressgateway
+            create: {{ canary | string | lower }}
+
         loadGenerator:
           create: false
   project: default
