@@ -27,6 +27,82 @@
 
 # Table of Contents
 
+- [List of abbreviations](#list-of-abbreviations)
+- [Base steps](#base-steps)
+    - [Deploying the original application in GKE](#deploying-the-original-application-in-gke)
+    - [Analyzing the provided configuration](#analyzing-the-provided-configuration)
+    - [Deploying the load generator](#deploying-the-load-generator)
+- [Intermediate steps](#intermediate-steps)
+    - [Helm chart](#helm-chart)
+    - [Continuous Integration & Continuous Deployment](#continuous-integration--continuous-deployment)
+- [Advanced & Bonus steps](#advanced--bonus-steps)
+    - [Monitoring the application and the infrastructure](#monitoring-the-application-and-the-infrastructure)
+        - [Base Monitoring Stack Implementation](#base-monitoring-stack-implementation)
+        - [Automated Deployment Process](#automated-deployment-process)
+        - [Enhanced Observability Stack](#enhanced-observability-stack)
+        - [Alerting & Notifications](#alerting--notifications)
+    - [Performance evaluation](#performance-evaluation)
+        - [Methodology](#methodology)
+        - [Phase 1: Baseline Performance (No Autoscaling)](#phase-1-baseline-performance-no-autoscaling)
+        - [Phase 2: With Horizontal Pod Autoscaling](#phase-2-with-horizontal-pod-autoscaling)
+        - [Phase 3: Complete Autoscaling](#phase-3-complete-autoscaling)
+        - [Conclusion](#conclusion)
+    - [Deploying Online Boutique with Service Mesh](#deploying-online-boutique-with-service-mesh)
+        - [What is Istio and Service Mesh?](#what-is-istio-and-service-mesh)
+        - [Automation and Platform Independence](#automation-and-platform-independence)
+        - [What is Kiali?](#what-is-kiali)
+        - [Maintaining Original Helm Chart Sidecars](#maintaining-original-helm-chart-sidecars)
+        - [Purpose of Service Mesh and Usage Cases](#purpose-of-service-mesh-and-usage-cases)
+    - [Canary releases](#canary-releases)
+        - [Manual Canary Deployment in Kubernetes](#manual-canary-deployment-in-kubernetes)
+        - [Automated Canary Releases with Flagger, Istio, and ArgoCD](#automated-canary-releases-with-flagger-istio-and-argocd)
+        - [Traffic Distribution using Istio](#traffic-distribution-using-istio)
+        - [Canary Releases Process in our Setup](#canary-releases-process-in-our-setup)
+        - [Canary Release Implementation for the Frontend Microservice](#canary-release-implementation-for-the-frontend-microservice)
+        - [Key Improvements and Best Practices](#key-improvements-and-best-practices)
+    - [Autoscaling](#autoscaling)
+        - [Autoscaling Technical](#autoscaling-technical)
+        - [Autoscaling Strategy](#autoscaling-strategy)
+    - [Implementing a Logging Solution for the Online Boutique Application](#implementing-a-logging-solution-for-the-online-boutique-application)
+        - [How Our System Works](#how-our-system-works)
+        - [Comparison Between Suggested Approach and Our Approach](#comparison-between-suggested-approach-and-our-approach)
+        - [Why Deploying Loki in GKE](#why-deploying-loki-in-gke)
+        - [Managing Loki System in GKE](#managing-loki-system-in-gke)
+        - [Key Improvements for Managing Loki under Heavy Load](#key-improvements-for-managing-loki-under-heavy-load)
+    - [Deploying a Self-Managed Kubernetes Cluster with Custom Autoscaler](#deploying-a-self-managed-kubernetes-cluster-with-custom-autoscaler)
+        - [Accomplishments from Last Year's Project](#accomplishments-from-last-years-project)
+        - [Limitations of the Previous Infrastructure](#limitations-of-the-previous-infrastructure)
+        - [Improving on the Previous Work](#improving-on-the-previous-work)
+        - [Designing the custom cluster autoscaler](#designing-the-custom-cluster-autoscaler)
+        - [Comparing Both Approaches](#comparing-both-approaches)
+        - [Implementing the second approach](#implementing-the-second-approach)
+    - [Optimizing the Cost of Our Deployment](#optimizing-the-cost-of-our-deployment)
+        - [Private Node Networking with Cloud NAT](#private-node-networking-with-cloud-nat)
+        - [Consolidated Service Exposure](#consolidated-service-exposure)
+        
+# List of abbreviations
+
+| Abbreviation | Definition |
+|-------------|------------|
+| API | Application Programming Interface |
+| ArgoCD | Argo Continuous Delivery |
+| CI/CD | Continuous Integration/Continuous Delivery |
+| CPU | Central Processing Unit |
+| GCP | Google Cloud Platform |
+| GKE | Google Kubernetes Engine |
+| gRPC | Google Remote Procedure Call |
+| HPA | Horizontal Pod Autoscaling |
+| HTTP | Hypertext Transfer Protocol |
+| IP | Internet Protocol |
+| NAT | Network Address Translation |
+| OTLP | OpenTelemetry Protocol |
+| RPS | Requests Per Second |
+| SLO | Service Level Objective |
+| SMTP | Simple Mail Transfer Protocol |
+| UI | User Interface |
+| VM | Virtual Machine |
+| YAML | YAML Ain't Markup Language |
+
 # Base steps
 
 ## Deploying the original application in GKE
@@ -1368,7 +1444,7 @@ While both designs have their limitations, here's why the second approach using 
 
 3. **Future Proofing:** Benefits from continuous community improvements and better K8s ecosystem compatibility
 
-### Implementing the second approach:
+### Implementing the second approach
 
 In the [autoscaler repository](https://gitlab.com/Hamdane10/autoscaler-project), there is the code related to provisioning the cluster from our project last year, as well as the newly added components to manage cluster autoscaling. These components are described below:
 
