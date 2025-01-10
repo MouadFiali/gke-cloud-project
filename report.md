@@ -517,7 +517,7 @@ We decided to merge the advanced and bonus steps as they are very related (or at
             - Locust Test: Custom dashboard for load testing metrics modified from public template
             - Redis Dashboard: Modified from public template for Redis metrics
             - Tracing: Custom-built dashboard for distributed tracing visualization
-
+          <div align="center">
             <p>
                 <a href="assets/redis-dashboard.png">
                     <img src="assets/redis-dashboard.png" alt="Redis Dashboard" width="400">
@@ -530,6 +530,7 @@ We decided to merge the advanced and bonus steps as they are very related (or at
             <br>
 
             <a href="assets/tracing-dashboard.png"><img src="assets/tracing-dashboard.png" alt="Tracing Dashboard" width="800"></a>
+          </div>
 
         - **Istio Dashboards**:
 
@@ -714,10 +715,11 @@ In our setup, Istio addresses the challenges of manual deployments by:
    - If metrics pass the defined criteria, the canary is promoted to primary, becoming the new stable version.
 
    - If metrics fail, Flagger automatically rolls back traffic to the primary version.
-
-<p align="center">
-    <img src="assets/canary-workflow.jpg" alt="Canary Workflow" width="70%" height="70%">
-</p>
+    <div align="center">
+      <p align="center">
+          <img src="assets/canary-workflow.jpg" alt="Canary Workflow" width="70%" height="70%">
+      </p>
+    </div>
 
 ### Canary Release Implementation for the Frontend Microservice
 
@@ -768,35 +770,45 @@ The analysis runs at 30-second intervals and gradually increases traffic to the 
 
 To verify the success of a Canary deployment with a working image change, we made a small change to the frontend source code. Flagger created the Canary deployment as explained earlier. Once the new revision was detected, we observed the Canary's events. The traffic weight increased over time until it reached the maximum weight of 25%, at which point the Canary was promoted:
 
-<p align="center">
-    <img src="assets/canary-promotion.jpg" alt="Canary Promotion" width="70%" height="70%">
-</p>
+<div align="center">
+  <p align="center">
+      <img src="assets/canary-promotion.jpg" alt="Canary Promotion" width="70%" height="70%">
+  </p>
+</div>
 
 We also verified the traffic distribution between the Canary and the primary deployment using the Kiali UI:
 
-<p align="center">
-    <img src="assets/kiali-traffic.jpg" alt="Kiali Traffic Distribution" width="70%" height="70%">
-</p>
+<div align="center">
+  <p align="center">
+      <img src="assets/kiali-traffic.jpg" alt="Kiali Traffic Distribution" width="70%" height="70%">
+  </p>
+</div>
 
 Additionally, we monitored both the Canary and primary deployments using one of the public Grafana dashboards we provisioned:
 
-<p align="center">
-    <img src="assets/canary-dashboard.jpg" alt="Istio Canary Grafana Dashboard" width="70%" height="70%">
-</p>
+<div align="center">
+  <p align="center">
+      <img src="assets/canary-dashboard.jpg" alt="Istio Canary Grafana Dashboard" width="70%" height="70%">
+  </p>
+</div>
 
 #### Testing Failed Canary and Automatic Rollback
 
 To test failure handling, we introduced an artificial delay of 3 seconds in the frontend endpoints (except the health check endpoint, so the readiness probe would not fail), the container image of this version of the frontend is `registry.gitlab.com/hamdane10/gke-cloud-project/frontend:v0.10.9`. When Flagger created the Canary deployment, the analysis started, but this time it failed because the request durations exceeded the defined threshold of 500ms. This triggered an automatic rollback:
 
-<p align="center">
-    <img src="assets/canary-failed.jpg" alt="Canary Failed" width="70%" height="70%">
-</p>
+<div align="center">
+  <p align="center">
+      <img src="assets/canary-failed.jpg" alt="Canary Failed" width="70%" height="70%">
+  </p>
+</div>
 
 We also configured a Prometheus alert to trigger when Flagger initiates a rollback due to a Canary failure:
 
-<p align="center">
-    <img src="assets/canary-rollback-alert.jpg" alt="Canary Rollback Alert" width="70%" height="70%">
-</p>
+<div align="center">
+  <p align="center">
+      <img src="assets/canary-rollback-alert.jpg" alt="Canary Rollback Alert" width="70%" height="70%">
+  </p>
+</div>
 
 ### Key Improvements and Best Practices
 
@@ -938,9 +950,11 @@ We initially deployed Loki in our GKE cluster with a configuration adapted to ou
 The node pool can be created using Terraform, and cluster autoscaling can be enabled for this Loki-specific node group. To isolate these nodes, taints can be applied to the nodes, such as `loki-workload-nodes`. A taint ensures that only pods with specific tolerations can be scheduled on these nodes. After creating the node pool with the taint and enabling autoscaling if necessary, tolerations need to be added to the Loki deployment configuration to ensure that Loki workloads are deployed to the dedicated nodes.
 
 
-<p align="center">
-    <img src="assets/loki-tolerations.jpg" alt="Loki dedicated node pool " width="70%" height="70%">
-</p>
+<div>
+  <p align="center">
+      <img src="assets/loki-tolerations.jpg" alt="Loki dedicated node pool " width="70%" height="70%">
+  </p>
+</div>
 
 ## Deploying a Self-Managed Kubernetes Cluster with Custom Autoscaler
 
