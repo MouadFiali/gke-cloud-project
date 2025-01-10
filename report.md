@@ -1,3 +1,606 @@
+<p align="center">
+    <a href="https://ensimag.grenoble-inp.fr/" style="float: left; margin-right: 10px;">
+        <img src="assets/imag.svg" alt="Logo" width=170 height=72>
+    </a>
+    <a href="https://www.univ-grenoble-alpes.fr/" style="float: right; margin-left: 10px;">
+        <img src="assets/uga.svg" alt="Logo" width=170 height=72>
+    </a>
+</p>
+
+<br clear="all">
+
+<p align="center">
+    <h2 align="center">Lab Assignment (Fall 2024) - Report</h2>
+</p>
+
+<p align="center">
+    <strong>Authors</strong>
+    <br>
+    FIALI Mouad
+    <br>
+    HAMDANE Yassine
+</p>
+
+<p align="center">
+    <strong>Supervised by</strong>
+    <br>
+    Prof. Thomas ROPARS
+</p>
+
+# Table of Contents
+
+# Base steps
+
+## Deploying the original application in GKE
+
+As a first step in our implementation, we focused on deploying the Online Boutique application in its basic configuration to establish a functional baseline. We used Terraform to provision and configure the Google Kubernetes Engine (GKE) cluster, ensuring an infrastructure-as-code approach from the start. 
+
+We relied on the terraform configuration provided by the [GCP microservices-demo repository](https://github.com/GoogleCloudPlatform/microservices-demo/tree/main/terraform) with several modifications to adapt it to our needs. The main components of the configuration are as follows:
+
+1. ### GKE Cluster Configuration:
+
+    - We configured two possible cluster types through Terraform: Standard and Autopilot
+
+    - The Standard cluster was configured with:
+        - Machine type: e2-standard-2
+        - Initial node count: 4 nodes
+        - Region-specific deployment
+
+    - Autopilot mode was also kept as an alternative, offering managed node provisioning
+
+    Note that all these configurations were made dynamic through the use of variables in the Terraform configuration.
+
+2. ### Application Deployment:
+
+    - At first, we deployed the application using the Kustomize tool and we used the provided kustomization files to deploy the application in the cluster.
+
+    ```shell
+    resource "null_resource" "apply_deployment" {
+        provisioner "local-exec" {
+            command = <<EOT
+            kubectl create namespace ${var.namespace}
+            kubectl apply -k ${var.filepath_manifest} -n ${var.namespace}
+            EOT
+        }
+    }
+    ```
+3. ### Load generator Deployment:
+
+    A key part of this initial deployment was also setting up the load generator. For this initial phase, we deployed a VM outside the GKE cluster and used a simple Docker Compose file to run Google's `loadgenerator` image without modifications. This setup provided a basic testing capability, though we would later enhance various parameters and configurations which we will discuss in the [Deploying the load generator](#deploying-the-load-generator) section.
+
+    
+
+## Analyzing the provided configuration
+
+In this part, we will analyze one of the services of the application and its configuration. We chose to analyze the `frontend` service which is the entry point of the application. Let's break down its key components:
+
+1. ### Deployment:
+
+- `apiVersion: apps/v1` - Specifies the Kubernetes API version
+- `kind: Deployment` - Defines this as a Kubernetes Deployment resource
+- `metadata`: Contains basic information about the Deployment (name, labels)
+- `spec`: Defines the desired state, including:
+    - `selector`: A label selector that determines which Pods are controlled by this Deployment (in this case, Pods with the label `app: frontend`)
+    - `template`: Pod configuration template:
+        - `securityContext`: Specifies security settings for the Pod (in this case, run as non-root user with the UID 1000)
+        - `containers`: Container specifications:
+            - `securityContext`: Specifies security settings for the container (in this case, enforces no privilege escalation and read-only filesystem)
+            - `image`: Uses the official frontend microservice image
+            - `readinessProbe`: Checks if the service is ready to accept traffic (Without this component, the service would be considered ready as soon as the container starts, which may not be accurate, as the application may still be initializing)
+            - `livenessProbe`: Checks if the service is still running (If the liveness probe fails, the container is restarted)
+            - `resources`: Defines CPU and memory limits/requests
+            - `env`: Sets service discovery environment variables
+
+2. ### Service:
+
+    A Kubernetes Service is an abstraction that defines a logical set of Pods and a policy by which to access them. Two services expose the frontend:
+
+    - *Internal Service (ClusterIP):*
+        - Enables cluster-internal communication
+        - Maps port 80 → 8080
+
+    - *External Service (LoadBalancer):*
+        - Exposes the application externally (to the internet)
+        - Creates cloud load balancer for public access on port 80
+
+3. ### Service account:
+
+    This service account is used to authenticate the frontend service to other services in the cluster and authorize it to access resources.
+
+4. ### Customization with Kustomize:
+
+    The base configuration can be enhanced using Kustomize patches to enable or disable specific features. For example, observability features can be enabled through patches:
+
+    ```yaml
+    # Example patch for enabling tracing and profiling
+    - patch: |-
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+        name: frontend
+        spec:
+        template:
+            spec:
+            containers:
+                - name: server
+                env:
+                - name: ENABLE_TRACING
+                    value: "1"
+                - name: ENABLE_PROFILER
+                    value: "1"
+    ```
+    This patch mechanism allows for flexible configuration management without modifying the base YAML files, enabling features like tracing, profiling, and other components based on deployment requirements.
+
+5. ### Customization with Helm:
+
+    The frontend service can also be customized using Helm. Helm is another tool that can be used to manage Kubernetes applications. It provides a templating engine to generate Kubernetes YAML files and a package manager to manage application dependencies. We will discuss this method in more details in the [Helm chart section](#helm-chart) as it's the one we chose to use in our implementation.
+
+## Deploying the load generator
+
+For load testing our application, we implemented a sophisticated deployment of the load generator (that was provided by the [GCP microservices-demo repository](https://github.com/GoogleCloudPlatform/microservices-demo/tree/main/src/loadgenerator)) with several enhancements for automation, observability and security. Here's our approach:
+
+1. ### Deployment Architecture
+
+    In order to facilitate the task, we used Ansible and Docker Compose to create a robust and secure load testing environment. The [docker-compose.yml](./scripts/docker-compose.yml) file defines the services and their configurations. The main components are:
+
+    - *Load Generator Service:*
+
+        ```yaml
+        loadgenerator:
+            image: us-central1-docker.pkg.dev/google-samples/microservices-demo/loadgenerator:v0.10.2
+            entrypoint: locust --host="http://${FRONTEND_ADDR}" 2>&1
+        ```
+        Note that we modified the default headless configuration to expose Locust's web interface locally, enabling access to detailed metrics and controls. Note that locust's web interface is only accessible locally (which is done by not exposing the port 8089 to the outside world). This is a security measure to prevent unauthorized access to the load generator.
+
+    - *Locust Exporter:*
+
+        ```yaml
+        locust-metrics-exporter:
+            image: containersol/locust_exporter
+            ports:
+                - "9646:9646"
+        ```
+        This service exports Locust metrics in Prometheus format, allowing for easy integration with monitoring our monitoring stack.
+
+    - *Frontend Health Check:*
+
+        A preliminary check that ensures the frontend service is available before starting the load generator.
+
+2. ### Automation with Terraform & Ansible
+
+    We used Ansible to automate the deployment of the load generator. The [`load-generator.tf`](./terraform/load-generator.tf) Terraform file provisions a VM instance in the same VPC (Virtual Private Cloud) as the GKE cluster, then it creates a dynamic inventory file for Ansible to use.
+
+    ```shell
+    resource "local_file" "ansible_inventory" {
+        count    = local.create_load_generator ? 1 : 0
+        filename = "../ansible/inventory.yml"
+        content  = <<-EOT
+        // ...
+            hosts:
+                load_generator:
+                ansible_host: ${google_compute_instance.load_generator[count.index].network_interface[0].access_config[0].nat_ip}
+        // ...
+    }
+    ```
+    The Ansible playbook [`deploy-load-generator.yml`](./ansible/deploy-load-generator.yml) then installs Docker and Docker Compose on the VM, and determines the correct service IP (frontend or ingress gateway) in order to pass it to the load generator container. Finally, it starts the load generator and swarms the target service (frontend) with requests (Users count: 10, spaw rate: 1).
+
+    Another important ansible playbook is the [`swarm-load-generator.yml`](./ansible/swarm-load-generator.yml) which is used to automate load test parameter changes. This is done by curling the `/swarm` endpoint of the load generator service, with the desired parameters (users count, spawn rate, target host). This playbook is used to dynamically adjust the load testing parameters during the test execution.
+
+    ```yaml
+      uri:
+        url: "http://localhost:8089/swarm"
+        ...
+        body: "user_count={{ users }}&spawn_rate={{ spawn_rate }}&host=http://{{ ingress_ip.stdout }}:80"
+        status_code: 200
+    ```
+3. ### Monitoring Integration:
+
+    The metrics exporter container publishes Locust metrics which are then:
+
+    - Scraped by Prometheus (configured separately)
+    - Visualized in custom Grafana dashboards
+
+    This setup will be further detailed in the [monitoring section](#monitoring-the-application-and-the-infrastructure), where we discuss our monitoring solution including dashboards, alerts, etc.
+
+The entire architecture provides a secure, automated, and observable load testing environment that can be easily controlled and monitored while maintaining security best practices.
+
+# Intermediate steps
+
+## Helm chart 
+The Google microservices-demo repository includes a Helm chart for deploying the application, which simplifies the deployment process. However, the provided Helm chart did not fully meet our requirements. For instance, modifying the application’s source code requires building a new image, pushing it to a container registry, and updating the Helm chart to reference the new image. Unfortunately, the container registry and image tags are hardcoded in the default Helm chart, limiting deployment flexibility. This is just one example of its limitations.
+
+To address these limitations, we decided to create our own Helm chart for the Online Boutique application. Our custom chart is heavily inspired by the one provided by Google but includes several modifications to make it more flexible and better suited to our specific requirements.
+
+1. ### Overview of Helm implementation
+
+    The Helm chart is structured as follows:
+
+    - [`Chart.yaml`](./helm-chart/Chart.yaml): Contains metadata about the chart
+    - [`values.yaml`](./helm-chart/values.yaml): Contains default values for the chart
+    - [`templates/`](./helm-chart/templates/): Contains the Kubernetes manifests for each service
+    - [`templates/common.yaml`:](./helm-chart/templates/common.yaml) Contains common configurations shared by multiple services
+
+    This structure offers several advantages such as centralized configuration management and easy enabling/disabling of features.
+
+2. ### Key changes & customizations
+
+    #### Custom Image Repository: 
+
+    ```yaml
+    images:
+        repository: registry.gitlab.com/hamdane10/gke-cloud-project 
+    ```
+    We moved from Google's public repository to our private GitLab registry, enabling us to:
+
+    - Modify service implementations when needed
+    - Maintain control over image versions
+    - Add custom features to specific services
+
+    This required adding image pull secrets to all manifests:
+    ```yaml
+    imagePullSecrets:
+        - name: gitlab-registry-secret
+    ```
+    #### Independent Service Versioning:
+    
+    Instead of using a single version for all services (which is the case of Google's helm chart), we implemented independent versioning in order to:
+
+    - Allow service-specific updates
+    - Enable gradual rollouts
+    - Facilitate testing for canary releases by updating specific services
+    - Maintain better version control per service
+
+    #### Horizontal Pod Autoscaling Configuration:
+
+    ```yaml
+    hpa:
+        enabled: false
+        minReplicas: 2
+        maxReplicas: 50
+        targetCPUUtilizationPercentage: 70
+    ```
+    Each service includes configurable HPA settings, allowing:
+
+    - Service-specific scaling policies
+    - Fine-tuned resource utilization
+    - Flexible scaling boundaries
+
+    The Horizontal Pod Autoscaling will be further discussed in the [Autoscaling section](#autoscaling-technical).
+
+    #### Canary Release Configuration:
+
+    ```yaml
+    frontend:
+        canary:
+            create: false
+            progressDeadlineSeconds: 60
+            analysis:
+            interval: 30s
+            threshold: 10
+            maxWeight: 25
+            stepWeight: 2
+            successRate: 99
+            metricInterval: 30s
+            duration: 500
+    ```
+    We added canary release configurations to the frontend service. The canary release is disabled by default but can be enabled with a simple flag. 
+
+The templates intelligently combine global configurations with service-specific settings, creating a flexible yet consistent deployment structure. Additional features like NetworkPolicies, Sidecars, and AuthorizationPolicies can be enabled through simple flags in the values file.
+
+This Helm-based approach provides the foundation for more advanced features we'll discuss in later sections, such as autoscaling, canary deployments, tracing etc.
+
+
+## Continuous Integration & Continuous Deployment
+
+We implemented a robust CI/CD pipeline using *GitLab CI* for building and deploying our application, coupled with *ArgoCD* for GitOps-based deployment management.
+
+1. ### CI Pipeline
+
+    Our CI implementation consists of two main pipelines:
+
+    #### Service Build Pipeline ([`.gitlab-ci-deploy.yml`](./.gitlab-ci-deploy.yml)):
+
+    - Parse Version: Automatically increments service version based on commit message tags (#major, #minor, #patch)
+    - Build: Builds Docker images and pushes them to our private [container registry](https://gitlab.com/Hamdane10/gke-cloud-project/container_registry)
+    - Deploy: Updates the Helm chart's values.yaml with new image versions (triggering the Helm chart pipeline)
+
+        This pipeline is triggered when code changes are detected in a service's directory:
+        
+        ```yaml
+        rules:
+            - if: '$CI_COMMIT_BRANCH == "master"'
+                changes:
+                - src/$COMPONENT_PATH/**/*
+        ```
+
+    #### Helm Chart Pipeline ([`.gitlab-ci-helm.yml`](./.gitlab-ci-helm.yml)):
+
+    - Validate: Verifies versioning and updates chart version based on commit message tags (#major, #minor, #patch). In the case where it's triggered by the service build pipeline, the tag used is (#patch)
+    - Package Release: Packages and publishes the Helm chart to our private [package registry](https://gitlab.com/Hamdane10/gke-cloud-project/-/packages)
+
+        This pipeline can be either triggered by the service build pipeline or by a direct commit to the Helm chart directory:
+        
+        ```yaml
+        rules: 
+            - if: '$CI_COMMIT_MESSAGE =~ /#(major|minor|patch)/'
+                changes:  
+                - helm-chart/**/*
+        ```
+
+        Generally speaking, it is triggered by a commit to the Helm chart directory containing the (major|minor|patch) tag in the commit message. This allows for other changes to the Helm chart to be deployed without incrementing the chart version.
+
+    In both pipelines, the versioning logic is implemented using a custom script that parses commit messages and increments the version accordingly depending on the tag found:
+    
+    - #major: 1.0.0 → 2.0.0
+    - #minor: 1.0.0 → 1.1.0
+    - #patch: 1.0.0 → 1.0.1
+    
+
+2. ### ArgoCD Integration
+
+    ArgoCD is a declarative continuous delivery tool for Kubernetes that follows the GitOps pattern. We use it to:
+
+    - Monitor our Helm chart repository (GitLab package registry)
+    - Automatically detect configuration changes
+    - Sync the cluster state with the desired state
+    - Provide visualization of deployment status
+
+    The ArgoCD application is deployed in the GKE cluster and is configured to monitor the Helm chart repository. When a new version of the Helm chart is published, ArgoCD automatically detects the change and updates the cluster state accordingly.
+
+This CI/CD pipeline provides a robust and automated deployment process that ensures consistency and reliability across all services. Here's a high-level overview of the pipeline:
+
+<p align="center">
+    <img src="./assets/cicd-pipeline.png" alt="CI/CD Pipeline">
+</p>
+
+# Advanced & Bonus steps
+
+We decided to merge the advanced and bonus steps as they are very related (or at least most of them). Note that we implemented other bonus steps other than the ones mentioned here (and in the lab instructions), but we chose to talk about them in other parts of the report, to maintain a logical order.
+
+## Monitoring the application and the infrastructure
+
+1. ### Base Monitoring Stack Implementation:
+
+    We implemented our monitoring stack using the Prometheus Community Kubernetes Stack ([kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)), deployed via Helm. This choice offered several advantages:
+
+    - Pre-configured node-exporter for hardware and OS metrics
+    - Built-in cAdvisor for container metrics
+    - Default Grafana dashboards for Kubernetes monitoring
+    - Integrated AlertManager for alert management (The configured alerts are mainly related to the nodes and the pods health and performance and the cluster state)
+    - ServiceMonitor CRD for automatic service discovery
+
+2. ### Automated Deployment Process:
+
+    We automated the entire monitoring setup using Ansible:
+
+    ```yaml
+    - name: Install Prometheus stack using Helm
+      shell: >
+        helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack 
+        --namespace monitoring
+        --values /tmp/prom-grafana-values-temp.yaml
+    ```
+    The automation includes:
+
+    - Namespace creation
+    - Helm repository management
+    - Dashboard ConfigMap creation based on the provided dashboards in the [dashboards](./ansible/dashboards) directory
+    - SMTP configuration for alerts
+
+3. ### Enhanced Observability Stack:
+
+    In order to help us monitor the application and the infrastructure more effectively, we integrated several additional components to enhance our observability stack:
+
+    - #### Component-Specific Monitoring
+        We added a custom redis exporter to monitor the Redis service. This exporter collects metrics from the Redis database and exposes them in Prometheus format. The exporter is deployed as a sidecar container in the Redis pod, and its metrics are scraped by Prometheus.
+
+        ```yaml
+        additionalScrapeConfigs:
+            - job_name: redis-exporter
+                static_configs:
+                - targets:
+                - redis-cart.app:9121
+        ```
+        This configuration allows us to gather Redis-specific metrics, such as memory usage, connection statistics, command execution metrics, and visualize them in a dedicated Grafana dashboard.
+
+        [![Redis exporter architecture](./assets/redis-sidecar.png)](./assets/redis-sidecar.png)
+
+    - #### Distributed Tracing:
+        The original Online Boutique application came with OpenTelemetry configuration available through feature flags in the Helm values:
+
+        ```yaml
+        opentelemetryCollector:
+            create: false
+            tracing:
+                enabled: false
+        ```
+        However, the provided configuration was tightly coupled with Google Cloud's infrastructure, sending traces to Google Cloud Trace service. This platform dependency would limit the application's portability and increase vendor lock-in.
+
+        To address this, we modified the OpenTelemetry collector configuration to use [Grafana Tempo](https://grafana.com/oss/tempo/) instead. Tempo is an open-source, highly scalable distributed tracing backend that:
+
+        - Supports multiple tracing protocols (Jaeger, Zipkin, OpenTelemetry)
+        - Provides cost-efficient trace storage using object storage
+        - Integrates seamlessly with Grafana for visualization
+
+        The integration required two main components:
+
+        - Tempo Configuration ([tempo-values.yaml](./ansible/custom-values/tempo-values.yaml)):
+            ```yaml
+            tempo:
+                receivers:
+                    otlp:
+                    protocols:
+                        grpc:
+                        endpoint: "0.0.0.0:4317"
+                        http:
+                        endpoint: "0.0.0.0:4318"
+            ```
+        - OpenTelemetry Collector Configuration ([opentelemetry-collector.yaml](./helm-chart/templates/opentelemetry-collector.yaml)):
+            ```yaml
+            exporters:
+                otlp:
+                    endpoint: tempo.monitoring.svc.cluster.local:4317
+                    tls:
+                    insecure: true
+
+            service:
+                pipelines:
+                    traces:
+                    receivers: [otlp]
+                    exporters: [otlp]
+            ```
+
+       Since the microservices were already instrumented to send traces to the OpenTelemetry collector, our modification of the collector's configuration was sufficient to redirect traces to Tempo. This approach allowed us to:
+
+        - Maintain the existing instrumentation in the applications
+        - Switch tracing backends without code changes
+        - Keep the tracing solution platform-independent
+
+        We then integrated Tempo with Grafana as a data source and created a dedicated tracing dashboard to visualize:
+
+        - End-to-end request flows
+        - Service dependencies
+        - Performance bottlenecks
+        - Error propagation
+
+        This implementation demonstrates how we leveraged the existing tracing infrastructure while making it more portable and platform-independent, all while maintaining the ability to visualize and analyze distributed traces effectively which will help us in debugging the application and identifying performance bottlenecks and their root causes.
+
+
+    - #### Logging Infrastructure
+
+        Similar to tracing, we extended the OpenTelemetry collector's capabilities to handle logging. Then we integrated it with [Grafana Loki](https://grafana.com/oss/loki/), a horizontally-scalable, highly-available log aggregation system designed to be cost-effective and easy to operate.
+        The collector configuration was enhanced to capture container logs:
+        
+        ```yaml
+        receivers:
+            filelog:
+                include:
+                - /var/log/pods/*/*/*.log
+                start_at: beginning
+                include_file_path: true
+        ```
+        And forward them to Loki:
+        
+        ```yaml
+        exporters:
+            loki:
+                endpoint: http://loki-write.monitoring.svc.cluster.local:3100/loki/api/v1/push
+        ```
+        More details about the logging infrastructure will be discussed in the [Implementing a Logging Solution for the Online Boutique Application](#implementing-a-logging-solution-for-the-online-boutique-application) section.
+
+    - #### Flexible Component Enablement
+
+        We implemented a flexible deployment model where observability components can be selectively enabled or disabled through feature flags:
+
+        ```yaml
+        opentelemetryCollector:
+            create: false  # Controls the entire collector deployment
+            tracing:
+                enabled: false  # Controls tracing pipeline
+            logging:
+                enabled: false  # Controls logging pipeline
+        ```
+        This configuration demonstrates our helm chart's adaptability to different observability requirements, and explains once again why we chose to build our own Helm chart.
+
+        Here is a high-level overview of the open-telemetry collector architecture:
+
+        <p align="center">
+            <a href="assets/opentelemetry.png">
+                <img src="assets/opentelemetry.png" alt="OpenTelemetry collector architecture">
+            </a>
+        </p>
+
+    - #### Custom Dashboards:
+
+        Our monitoring solution leverages a mix of pre-configured and custom Grafana dashboards organized into three main categories:
+
+        - **Custom Dashboards:**
+
+            - Locust Test: Custom dashboard for load testing metrics modified from public template
+            - Redis Dashboard: Modified from public template for Redis metrics
+            - Tracing: Custom-built dashboard for distributed tracing visualization
+
+            <p>
+                <a href="assets/redis-dashboard.png">
+                    <img src="assets/redis-dashboard.png" alt="Redis Dashboard" width="400">
+                </a>
+                <a href="assets/locust-dashboard.png">
+                    <img src="assets/locust-dashboard.png" alt="Locust Dashboard" width="400">
+                </a>
+            </p>
+
+            <br>
+
+            <a href="assets/tracing-dashboard.png"><img src="assets/tracing-dashboard.png" alt="Tracing Dashboard" width="800"></a>
+
+        - **Istio Dashboards**:
+
+            - Standard suite of Istio dashboards imported from [Grafana Labs](https://grafana.com/grafana/dashboards/)
+            - Includes specialized views for mesh, performance, canary deployments, and service monitoring
+
+        - **Loki Dashboards**:
+
+            - Container Log Dashboard: For centralized log visualization and analysis
+
+        The dashboards are sourced through two methods:
+
+        - Direct import from [Grafana Labs](https://grafana.com/grafana/dashboards/) using dashboard IDs
+        - Custom JSON configurations stored in the [dashboards](./ansible/dashboards/) directory for modified or custom dashboards
+
+        This setup provides comprehensive visibility into our application's performance, behavior, and health while leveraging established community dashboards where appropriate.
+
+3. ### Alerting & Notifications:
+
+    Our monitoring stack includes an integrated AlertManager for managing alerts. Many alerts are imported by default with the helm chart of the monitoring stack, such as:
+
+    - **Node Health Alerts:**
+        - High CPU/Memory Usage
+        - Disk Space Exhaustion
+        - Network Issues
+
+    - **Pod Health Alerts:**
+        - CrashLoopBackOff
+        - High Restart Count
+        - Resource Limit Exceeded
+
+    In addition to these default alerts (these are just examples), we added custom alerts to suit our specific requirements. Here are the alerts rules that we added:
+
+    ```yaml
+    additionalPrometheusRulesMap:
+        canary-alerts:
+            [ ... ]
+        locust-alerts:
+            [ ... ]
+    ```
+    The canary alert rules are designed to trigger notifications when canary deployments fail to meet success criteria (More details will be included in the [Canary releases](#canary-releases)). While the locust alert rules are designed to trigger notifications when the failure rate of requests exceeds a certain threshold (e.g., 1%). This last alert does not make much sense in a production environment, instead we should have an alert that triggers when the failure rate of real requests exceeds a certain threshold. So in our case, it only simulates a real-world scenario where the application is under heavy load and some requests are failing.
+
+    These alerts are configured to trigger notifications via email. And in order to do this, an SMTP configuration is required in the alert manager configuration ([prom-grafana-values.yaml](./ansible/custom-values/prom-grafana-values.yaml)):
+
+    ```yaml
+    alertmanager:
+        config:
+            global:
+                resolve_timeout: 5m
+                smtp_from: 'alerting@grafana.com'
+                smtp_smarthost: host-value
+                [ ... ]
+            [ ... ]
+    ```
+    The SMTP configuration is used to send alerts to a specific email address when a rule is triggered. For testing purposes, we used an SMTP server provided by [Mailtrap](https://mailtrap.io/). Mailtrap is a fake SMTP server for development teams to test, view, and share emails.
+
+    ![Locust Alert Example](./assets/locust-alert.png)
+
+### Performance evaluation
+#### Methodology
+- Service Level Objective
+- Scenarios
+#### Before autoscaling
+- Configuration
+- Tests
+- Results
+#### After HPA
+#### After Cluster autoscaling
+
 ## Deploying Online Boutique with Service Mesh
 
 Inspired by the article ["Use Helm to simplify and secure the deployment of Online Boutique, with Service Mesh, GitOps, and more"](https://medium.com/google-cloud/online-boutiques-helm-chart-to-simplify-the-setup-of-advanced-scenarios-with-service-mesh-and-246119e46d53), we enhanced the deployment of the Online Boutique application by integrating a service mesh using Istio. 
@@ -163,8 +766,6 @@ The `analysis` section defines the Canary analysis to be performed. In this case
 
 The analysis runs at 30-second intervals and gradually increases traffic to the Canary by `stepWeight` (2%) until it reaches the `maxWeight` (25%). If any threshold is violated, the Canary will be rolled back automatically.
 
----
-
 #### Testing Successful Canary Promotion
 
 To verify the success of a Canary deployment with a working image change, we made a small change to the frontend source code. Flagger created the Canary deployment as explained earlier. Once the new revision was detected, we observed the Canary's events. The traffic weight increased over time until it reached the maximum weight of 25%, at which point the Canary was promoted:
@@ -184,8 +785,6 @@ Additionally, we monitored both the Canary and primary deployments using one of 
 <p align="center">
     <img src="assets/canary-dashboard.jpg" alt="Istio Canary Grafana Dashboard" width="70%" height="70%">
 </p>
-
----
 
 #### Testing Failed Canary and Automatic Rollback
 
@@ -478,37 +1077,37 @@ While both designs have their limitations, here's why the second approach using 
 
 In the [autoscaler repository](https://gitlab.com/Hamdane10/autoscaler-project), there is the code related to provisioning the cluster from our project last year, as well as the newly added components to manage cluster autoscaling. These components are described below:
 
-#### 1. [**ip-manager.sh**](https://gitlab.com/Hamdane10/autoscaler-project/-/blob/27a9a608d9df3d5d0dded564df174dab2bc04c7a/scripts/ip-manager.sh)
+1. #### [**ip-manager.sh**](https://gitlab.com/Hamdane10/autoscaler-project/-/blob/27a9a608d9df3d5d0dded564df174dab2bc04c7a/scripts/ip-manager.sh)
    - **Purpose:** Manages IP pool initialization, assignment, and release for worker and master nodes.
    - **Key Features:** Handles IP availability, updates Terraform configurations, and maintains consistency between infrastructure and Kubernetes state.
 
-#### 2. [**worker-playbook.yaml**](https://gitlab.com/Hamdane10/autoscaler-project/-/blob/27a9a608d9df3d5d0dded564df174dab2bc04c7a/configuration/worker-playbook.yaml)
+2. #### [**worker-playbook.yaml**](https://gitlab.com/Hamdane10/autoscaler-project/-/blob/27a9a608d9df3d5d0dded564df174dab2bc04c7a/configuration/worker-playbook.yaml)
    - **Purpose:** Automates the configuration and integration of worker nodes into the Kubernetes cluster.
    - **Key Features:** 
      - Loads cluster join details (e.g., tokens, CA certificates).
      - Executes the `kubeadm join` command to register worker nodes.
 
-#### 3. [**remove-node.yaml**](https://gitlab.com/Hamdane10/autoscaler-project/-/blob/27a9a608d9df3d5d0dded564df174dab2bc04c7a/configuration/remove-node.yaml)
+3. #### [**remove-node.yaml**](https://gitlab.com/Hamdane10/autoscaler-project/-/blob/27a9a608d9df3d5d0dded564df174dab2bc04c7a/configuration/remove-node.yaml)
    - **Purpose:** Safely removes nodes from the Kubernetes cluster.
    - **Key Features:**
      - Verifies node existence.
      - Executes cordon and drain operations.
      - Deletes the node from Kubernetes and verifies its removal.
 
-#### 4. [**scale-out.sh**](https://gitlab.com/Hamdane10/autoscaler-project/-/blob/27a9a608d9df3d5d0dded564df174dab2bc04c7a/scale-out.sh)
+4. #### [**scale-out.sh**](https://gitlab.com/Hamdane10/autoscaler-project/-/blob/27a9a608d9df3d5d0dded564df174dab2bc04c7a/scale-out.sh)
    - **Purpose:** Handles scaling out by provisioning new worker nodes and integrating them into the cluster.
    - **Key Features:**
      - Updates worker node count in environment variables.
      - Assigns new IPs and provisions infrastructure using Terraform.
      - Configures new workers with necessary tools and Kubernetes setup.
 
-#### 5. [**scale-down.sh**](https://gitlab.com/Hamdane10/autoscaler-project/-/blob/27a9a608d9df3d5d0dded564df174dab2bc04c7a/scale-down.sh)
+5. #### [**scale-down.sh**](https://gitlab.com/Hamdane10/autoscaler-project/-/blob/27a9a608d9df3d5d0dded564df174dab2bc04c7a/scale-down.sh)
    - **Purpose:** Manages scaling down by removing underutilized worker nodes.
    - **Key Features:**
      - Identifies and releases resources for specified nodes.
      - Updates HAProxy configurations and regenerates IP pools.
 
-#### 6. [**.gitlab-ci.yml**](https://gitlab.com/Hamdane10/autoscaler-project/-/blob/27a9a608d9df3d5d0dded564df174dab2bc04c7a/.gitlab-ci.yml)
+6. #### [**.gitlab-ci.yml**](https://gitlab.com/Hamdane10/autoscaler-project/-/blob/27a9a608d9df3d5d0dded564df174dab2bc04c7a/.gitlab-ci.yml)
    - **Purpose:** Defines the CI/CD pipelines for deploying, scaling, and maintaining the Kubernetes cluster.
    - **Key Features:**
      - Automates scale-out and scale-down tasks.
