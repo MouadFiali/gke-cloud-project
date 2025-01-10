@@ -589,16 +589,299 @@ We decided to merge the advanced and bonus steps as they are very related (or at
 
     ![Locust Alert Example](./assets/locust-alert.png)
 
-### Performance evaluation
-#### Methodology
-- Service Level Objective
-- Scenarios
-#### Before autoscaling
-- Configuration
-- Tests
-- Results
-#### After HPA
-#### After Cluster autoscaling
+## Performance evaluation
+### Methodology
+- **Service Level Objective**
+    
+    Before conducting our performance evaluation, we established clear Service Level Objectives to provide measurable targets for our application's performance. These SLOs were designed to reflect realistic production requirements while ensuring a high-quality user experience:
+
+    - Response Time SLOs:
+
+        - Latency should remain under 400ms
+        - Maximum 1% of requests can exceed this threshold
+    - Error Rate SLOs:
+
+        - Maintain a 99.9% success rate
+        - Error budget of 0.1% of total requests
+        - Alert triggers if error rate exceeds 1% for 5 minutes
+
+    These SLOs served as our baseline for evaluating different autoscaling strategies and determining whether our system's performance met production-grade requirements. 
+
+- **Methodology**
+
+    Our performance evaluation followed a systematic approach, conducting tests in three distinct phases to understand the application's behavior under different scaling configurations:
+
+    - Phase 1: Baseline Performance (No Autoscaling)
+    - Phase 2: With Horizontal Pod Autoscaling
+    - Phase 3: Complete Autoscaling
+
+    Each phase involved load testing the application using Locust to simulate user traffic with different load levels. We measured key performance metrics such as response time and error rate to evaluate the application's performance under varying conditions.
+
+
+
+### Phase 1: Baseline Performance (No Autoscaling)
+
+- **Objective**: Establish baseline performance and identify bottlenecks
+
+- **Configuration**:
+
+    - No Horizontal Pod Autoscaling (HPA)
+    - No Cluster Autoscaling
+    - Default pod replicas for all services
+
+- **Test Parameters:** We started with an incremental load test from *0 users* to *200 users*, with stabilization periods at different load levels (For example wait for 10min at 50 users, 100 users, 150 users, and 200 users). This allowed us to observe the application's behavior under increasing load and identify performance bottlenecks.
+
+- **Conclusions**:
+    
+    Our baseline testing revealed several critical performance bottlenecks when the user load increased from 75 to 125 users:
+
+    - Currency Service Bottleneck
+
+        - Response time significantly degraded after 70% CPU utilization
+        - Response times increased from 100ms to over 200ms
+
+    - Frontend Service Performance
+
+        - CPU utilization reached 70% under load
+        - Homepage ("/") endpoint showed high response times
+
+    - Checkout Service Limitations
+
+        - Despite low CPU usage (4%), response times doubled
+        - Progression from 75ms to over 200ms
+
+    This graph shows the response time behavior of the application under increasing load (over 125 users):
+    <div align="center" id="response-time-bottleneck-1">
+        <p align="center">
+                <img src="assets/performance/bottleneck-1.png" alt="Response time bottleneck 1" width="800">
+        </p>
+    </div>
+
+    - High Load Impact (175-200 users)
+
+        - Aggressive spawn rate (25 users/second) led to:
+
+            - Failure rates exceeding our 0.1% error budget
+            - System unable to maintain SLO compliance
+            - After 200 users the reponse time exceeded our Response Time SLO (400ms)
+
+- Results analysis:
+
+    Our performance testing revealed several architectural and design issues affecting different microservices:
+
+    1. #### Checkout Service: Synchronous Dependencies Problem
+
+        Despite low CPU utilization, the checkout service exhibited high response times and frequent failures. Through distributed tracing, we identified the root cause: The service is highly dependent on other services. 
+
+        <div align="center">
+            <p align="center">
+                    <img src="assets/performance/checkout-bottleneck.png" alt="Checkout Service Tracing" width="800">
+            </p>
+        </div>
+
+        After analyzing the code of the checkout service the following issues:
+        - Sequential Service Calls: The service makes multiple synchronous API calls in sequence:
+        <div align="center">
+            <p align="center">
+                    <img src="assets/performance/checkout-code-problem.png" alt="Checkout Service Tracing" width="800">
+            </p>
+        </div>
+
+        - Architectural Issue: Each operation waits for the previous one to complete, creating a chain of dependencies that:
+
+            - Increases total response time linearly with each call
+            - Raises failure probability (failure in any service breaks the chain)
+            - Makes the service vulnerable to latency spikes in any dependent service
+
+    2. #### Currency Service: High Coupling Issue
+
+        The currency service showed rapid CPU utilization increase and degraded performance. After analyzing the code of the currency service and other services, we identified the following issues:
+
+        - Excessive Service Coupling: The service is tightly integrated across the application
+
+        - Called implicitly by most other services. For example the Frontend code shows currency service calls even for basic page loads
+
+            <div align="center">
+                <p align="center">
+                        <img src="assets/performance/frontend-code-problem.png" alt="Checkout Service Tracing" width="800">
+                </p>
+            </div>
+
+        - Acts as a critical dependency for nearly all transactions
+
+        - Design Flaw: Simple currency operations are centralized in a way that:
+
+            - Creates a single point of contention
+            - Unnecessarily increases inter-service communication
+            - Could be handled more efficiently through alternative patterns
+
+    3. #### Frontend Service Performance
+
+        The frontend service, particularly the root endpoint ("/"), showed significant performance degradation:
+
+        - Response Time Impact: As shown in the Response time graph shown earlier, the "/" endpoint's response time increased dramatically under load
+        - Root Cause: As we saw before, the frontend function `homeHandler` calls the currency service at the beginning, which means:
+            - Direct dependency on the already-stressed currency service
+            - Cascading effect from currency service's performance issues
+
+    4. #### System Elasticity Limitations
+
+        High-velocity load testing exposed the system's lack of elasticity:
+
+        Rapid Load Impact:
+
+        - Services unable to handle sudden traffic spikes
+        - Response times exceeding SLO thresholds
+        - Error rates increasing beyond acceptable limits
+
+    These findings highlight fundamental architectural issues in the application:
+
+    - Over-reliance on synchronous communication
+    - Tight coupling between services
+    - Centralization of common functionality (currency conversion)
+    - Lack of resilience patterns
+
+- **Key Insights for Autoscaling Strategy**
+
+    These findings provided insights for our HPA configuration:
+
+    - Resource Allocation
+
+        - Currency service requires lower CPU threshold for scaling
+        - Frontend service needs aggressive scaling to handle user load
+        - Checkout service needs optimization beyond just scaling. But to simplify, we decided to start with higher number of replicas with a very low CPU threshold.
+
+    - Scaling Triggers
+
+        - Set CPU utilization targets below observed bottleneck points
+        - Currency service: Target < 60% CPU utilization
+        - Frontend service: Target < 60% CPU utilization
+
+### Phase 2: With Horizontal Pod Autoscaling
+
+- **Objective**: Evaluate the effectiveness of Horizontal Pod Autoscaling (HPA) in addressing the bottlenecks identified in Phase 1, specifically targeting the currency, frontend, and checkout services (even though the checkout service issue is more complex than just scaling).
+
+- **Configuration**: HPA settings based on Phase 1 findings:
+
+    - Currency Service: Target CPU utilization at 60%
+    - Frontend Service: Target CPU utilization at 60%
+    - Other services: Target CPU utilization at 70%
+    - Min/max replicas configured according to observed load patterns
+
+- **Test Parameters:** Incremental load testing:
+
+    - First stage: 200 to 500 users (focusing above our Phase 1 bottleneck)
+    - Second stage: 500 to 1000 users
+    - Stabilization periods at each increment to observe scaling behavior
+
+- **Conclusions**:
+
+    The implementation of HPA showed mixed results:
+    - Improvements (200-500 users):
+
+        - Services scaled effectively based on CPU metrics
+        - Maintained response times within SLOs initially
+        - Better handling of load compared to Phase 1
+
+    <div align="center">
+        <p align="center">
+                <img src="assets/performance/currency-scaling.png" alt="Checkout Service Tracing">
+        </p>
+    </div>
+
+    - Limitations (500-1000 users):
+
+        - Resource Saturation:
+
+            - Node resources became the limiting factor
+            - Pods unable to scale further despite demand
+
+            <div align="center">
+                <p align="center">
+                    <img src="assets/performance/nodes-saturation.png" alt="Checkout Service Tracing">
+                </p>
+
+            </div>
+
+            - Response times exceeding our 400ms SLO
+
+            <div align="center">
+                <p align="center">
+                    <img src="assets/performance/phase2-response-time.png" alt="Checkout Service Tracing">
+                </p>
+            </div>
+            
+
+    - Breaking Point (>1000 users): System degradation:
+
+        - Error rates spiked to 6% (well above 0.1% SLO)
+        - Widespread pod failures
+        - Response times significantly degraded
+
+    <div align="center">
+        <p align="center">
+                <img src="assets/performance/breaking-point-hpa.png" alt="Checkout Service Tracing">
+        </p>
+    </div>
+
+    This phase demonstrated that while HPA improved service resilience, node-level resource constraints ultimately limited its effectiveness. This finding led us to implement cluster autoscaling in the next phase to address the underlying infrastructure limitations.
+
+### Phase 3: Complete Autoscaling
+
+- **Objective**: Evaluate the effectiveness of combined horizontal pod and cluster autoscaling in handling larger workloads while maintaining our SLOs, particularly focusing on addressing the node-level resource constraints identified in Phase 2.
+
+- **Configuration**: We implemented a cluster autoscaling strategy leveraging a multi-zone setup within the europe-west6 region. The cluster was initially configured with 2 nodes per zone, totaling 6 nodes across three zones, with each node being of type e2-standard-2. This configuration allowed for expansion up to a maximum of 30 nodes across all zones. The multi-zone architecture was chosen to address two critical aspects: resource availability and system reliability. From a resource perspective, this setup helped us circumvent GCP's per-zone node quota limitations while enabling broader resource distribution. In terms of reliability, the multi-zone deployment provided enhanced fault tolerance and high availability, ensuring our application could continue operating even if one zone experienced issues.
+
+    Additional configuration benefits include:
+
+    - Improved disaster recovery capabilities
+    - Better load distribution across zones
+    - Enhanced geographical redundancy
+
+- **Test Parameters:** Extended load testing:
+
+    - Base load: 500 to 1500 users
+    - Incremental increases up to 5000 users with stabilization periods at each increment
+    - We exceeded 1.5k Request per second (RPS) at peak load to stress test the system
+        <div align="center">
+            <p align="center">
+                    <img src="assets/performance/max-rps.png" alt="Checkout Service Tracing">
+            </p>
+        </div> 
+    - Monitored scaling behavior at both pod and node levels
+
+- **Conclusions**:  The complete autoscaling implementation demonstrated significant improvements:
+
+    The complete autoscaling implementation demonstrated significant improvements and positive outcomes:
+
+    - Successfully handled increased load up to 5000 users
+    - Maintained performance metrics within SLOs
+    - Effective resource distribution across zones
+
+    <div align="center">
+        <p align="center">
+                <img src="assets/performance/high-nodes.png" alt="Checkout Service Tracing">
+        </p>
+    </div>
+
+    These graphs show how the response time is still respecting our SLOs even under high load:
+
+    <div align="center">
+        <p align="center">
+                <img src="assets/performance/phase3-response-time.png" alt="Checkout Service Tracing">
+        </p>
+    </div>
+    <div align="center">
+        <p align="center">
+                <img src="assets/performance/users-at-5k.png" alt="Checkout Service Tracing">
+        </p>
+    </div>
+
+    **Note:** Please note that our load testing capabilities were constrained to around 6500 users due to the limitations of running Locust in a single-instance configuration (as we did not deploy a distributed version). However, we are conviced this was enough to demonstrate the effectiveness of our autoscaling strategy without having to deploy a distributed version of Locust.
+### Conclusion
+
+The project revealed that while scaling effectively addressed immediate performance challenges, it may not be the most efficient long-term solution. Services with architectural issues, like the checkout service's synchronous dependencies, required disproportionate resources when scaled. This suggests that a more balanced approach combining scaling capabilities with architectural improvements (such as implementing asynchronous patterns) would provide better cost-efficiency and long-term sustainability than relying on scaling alone.
+
 
 ## Deploying Online Boutique with Service Mesh
 
