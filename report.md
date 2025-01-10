@@ -1,31 +1,29 @@
-<p align="center">
-    <a href="https://ensimag.grenoble-inp.fr/" style="float: left; margin-right: 10px;">
-        <img src="assets/imag.svg" alt="Logo" width=170 height=72>
-    </a>
-    <a href="https://www.univ-grenoble-alpes.fr/" style="float: right; margin-left: 10px;">
-        <img src="assets/uga.svg" alt="Logo" width=170 height=72>
-    </a>
-</p>
+<div align="center">
+  <br>
+  <p align="center">
+      <a href="https://ensimag.grenoble-inp.fr/">
+          <img src="assets/imag.svg" alt="Logo" width="300">
+      </a>
+  </p>
+  
+  <p align="center">
+      <h2 align="center">Lab Assignment (Fall 2024) - Report</h2>
+  </p>
 
-<br clear="all">
+  <p align="center">
+      <strong>Authors</strong>
+      <br>
+      FIALI Mouad
+      <br>
+      HAMDANE Yassine
+  </p>
 
-<p align="center">
-    <h2 align="center">Lab Assignment (Fall 2024) - Report</h2>
-</p>
-
-<p align="center">
-    <strong>Authors</strong>
-    <br>
-    FIALI Mouad
-    <br>
-    HAMDANE Yassine
-</p>
-
-<p align="center">
-    <strong>Supervised by</strong>
-    <br>
-    Prof. Thomas ROPARS
-</p>
+  <p align="center">
+      <strong>Supervised by</strong>
+      <br>
+      Prof. Thomas ROPARS
+  </p>
+</div>
 
 # Table of Contents
 
