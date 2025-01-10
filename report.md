@@ -1127,3 +1127,28 @@ In the [autoscaler repository](https://gitlab.com/Hamdane10/autoscaler-project),
      - Integrates with Terraform for infrastructure management.
 
 We successfully tested the GitLab pipelines for scaling out and down by triggering them manually. Additionally, we deployed the Kubernetes autoscaler. However, due to time constraints, we were unable to complete the development of the custom gRPC server, which is intended to trigger the GitLab pipelines upon receiving requests from the autoscaler.
+
+## Optimizing the Cost of Your Deployment
+
+The deployment cost optimization strategy focused on two key areas: network traffic management and service exposure consolidation.
+
+### Private Node Networking with Cloud NAT
+
+The first optimization removed external public IPs that were automatically assigned to each GKE cluster node during creation. Having external IPs for each node is both costly and poses security risks, especially with cluster autoscaling enabled. Instead, we implemented a more secure and cost-effective approach where nodes only have private IPs and access the internet through a Cloud NAT router.
+
+  <div align="center">
+    <p align="center">
+      <img src="assets/gke-nat-router.jpg" alt="GKE Nat router" width="40%" height="40%">
+    </p>
+  </div>
+
+### Consolidated Service Exposure
+
+The second optimization improved how we expose external services (Grafana, ArgoCD, and Kiali UI). Rather than using individual LoadBalancer Services that would each require a separate public IP, we leveraged Istio VirtualService capabilities to create routing rules that expose all three UIs through a single public IP. 
+
+The services are accessible through the following paths:
+- Grafana: `<public-ip>/infra/monitoring/grafana`
+- Kiali: `<public-ip>/infra/monitoring/kiali`
+- ArgoCD: `<public-ip>/infra/monitoring/argocd`
+
+The complete routing configuration is defined in [monitoring-virtualservice.yaml](ansible/monitoring-virtualservice.yaml).
