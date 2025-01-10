@@ -60,9 +60,6 @@
         - [Canary Releases Process in our Setup](#canary-releases-process-in-our-setup)
         - [Canary Release Implementation for the Frontend Microservice](#canary-release-implementation-for-the-frontend-microservice)
         - [Key Improvements and Best Practices](#key-improvements-and-best-practices)
-    - [Autoscaling](#autoscaling)
-        - [Autoscaling Technical](#autoscaling-technical)
-        - [Autoscaling Strategy](#autoscaling-strategy)
     - [Implementing a Logging Solution for the Online Boutique Application](#implementing-a-logging-solution-for-the-online-boutique-application)
         - [How Our System Works](#how-our-system-works)
         - [Comparison Between Suggested Approach and Our Approach](#comparison-between-suggested-approach-and-our-approach)
@@ -1487,7 +1484,7 @@ In the [autoscaler repository](https://gitlab.com/Hamdane10/autoscaler-project),
 
 We successfully tested the GitLab pipelines for scaling out and down by triggering them manually. Additionally, we deployed the Kubernetes autoscaler. However, due to time constraints, we were unable to complete the development of the custom gRPC server, which is intended to trigger the GitLab pipelines upon receiving requests from the autoscaler.
 
-## Optimizing the Cost of Your Deployment
+## Optimizing the Cost of Our Deployment
 
 The deployment cost optimization strategy focused on two key areas: network traffic management and service exposure consolidation.
 
