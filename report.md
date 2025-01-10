@@ -5,9 +5,9 @@
           <img src="assets/imag.svg" alt="Logo" width="300">
       </a>
   </p>
-  
+
   <p align="center">
-      <h2 align="center">Lab Assignment (Fall 2024) - Report</h2>
+      <h1 align="center">Lab Assignment (Fall 2024) - Report</h1>
   </p>
 
   <p align="center">
